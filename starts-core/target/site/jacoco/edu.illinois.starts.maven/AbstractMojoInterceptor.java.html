@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractMojoInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.maven</a> &gt; <span class="el_source">AbstractMojoInterceptor.java</span></div><h1>AbstractMojoInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.maven;
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.net.JarURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.logging.Logger;
+
+import edu.illinois.starts.constants.StartsConstants;
+
+<span class="nc" id="L18">public abstract class AbstractMojoInterceptor implements StartsConstants {</span>
+
+<span class="nc" id="L20">    protected static final Logger LOGGER = Logger.getGlobal();</span>
+
+    public static URL extractJarURL(URL url) throws IOException {
+<span class="nc" id="L23">        JarURLConnection connection = (JarURLConnection) url.openConnection();</span>
+<span class="nc" id="L24">        return connection.getJarFileURL();</span>
+    }
+
+    public static URL extractJarURL(Class&lt;?&gt; clz) throws IOException {
+<span class="nc" id="L28">        return extractJarURL(getResource(clz));</span>
+    }
+
+    public static URL getResource(Class&lt;?&gt; clz) {
+<span class="nc" id="L32">        URL resource = clz.getResource(&quot;/&quot; + clz.getName().replace('.', File.separatorChar) + CLASS_EXTENSION);</span>
+<span class="nc" id="L33">        return resource;</span>
+    }
+
+    protected static void throwMojoExecutionException(Object mojo, String message, Exception cause) throws Exception {
+<span class="nc" id="L37">        Class&lt;?&gt; clz = mojo.getClass().getClassLoader().loadClass(MOJO_EXECUTION_EXCEPTION_BIN);</span>
+<span class="nc" id="L38">        Constructor&lt;?&gt; con = clz.getConstructor(String.class, Exception.class);</span>
+<span class="nc" id="L39">        Exception ex = (Exception) con.newInstance(message, cause);</span>
+<span class="nc" id="L40">        throw ex;</span>
+    }
+
+    protected static void setField(String fieldName, Object mojo, Object value) throws Exception {
+        Field field;
+        try {
+<span class="nc" id="L46">            field = mojo.getClass().getDeclaredField(fieldName);</span>
+<span class="nc" id="L47">        } catch (NoSuchFieldException ex) {</span>
+<span class="nc" id="L48">            field = mojo.getClass().getSuperclass().getDeclaredField(fieldName);</span>
+<span class="nc" id="L49">        }</span>
+<span class="nc" id="L50">        field.setAccessible(true);</span>
+<span class="nc" id="L51">        field.set(mojo, value);</span>
+<span class="nc" id="L52">    }</span>
+
+    protected static Object getField(String fieldName, Object mojo) throws Exception {
+        Field field;
+        try {
+<span class="nc" id="L57">            field = mojo.getClass().getDeclaredField(fieldName);</span>
+<span class="nc" id="L58">        } catch (NoSuchFieldException ex) {</span>
+<span class="nc" id="L59">            field = mojo.getClass().getSuperclass().getDeclaredField(fieldName);</span>
+<span class="nc" id="L60">        }</span>
+<span class="nc" id="L61">        field.setAccessible(true);</span>
+<span class="nc" id="L62">        return field.get(mojo);</span>
+    }
+
+    protected static List&lt;String&gt; getListField(String fieldName, Object mojo) throws Exception {
+<span class="nc" id="L66">        return (List&lt;String&gt;) getField(fieldName, mojo);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

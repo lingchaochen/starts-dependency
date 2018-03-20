@@ -1,0 +1,10 @@
+<metadata>
+  <groupId>commons-httpclient</groupId>
+  <artifactId>commons-httpclient</artifactId>
+  <versioning>
+    <versions>
+      <version>20020423</version>
+    </versions>
+    <lastUpdated>20180320162439</lastUpdated>
+  </versioning>
+</metadata>

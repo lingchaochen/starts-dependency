@@ -1,0 +1,898 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Type.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.asm</a> &gt; <span class="el_source">Type.java</span></div><h1>Type.java</h1><pre class="source lang-java linenums">/***
+ * ASM: a very small and fast Java bytecode manipulation framework
+ * Copyright (c) 2000-2011 INRIA, France Telecom
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holders nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.illinois.starts.asm;
+
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+
+/**
+ * A Java field or method type. This class can be used to make it easier to
+ * manipulate type and method descriptors.
+ *
+ * @author Eric Bruneton
+ * @author Chris Nokleberg
+ */
+public class Type {
+
+    /**
+     * The sort of the &lt;tt&gt;void&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int VOID = 0;
+
+    /**
+     * The sort of the &lt;tt&gt;boolean&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int BOOLEAN = 1;
+
+    /**
+     * The sort of the &lt;tt&gt;char&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int CHAR = 2;
+
+    /**
+     * The sort of the &lt;tt&gt;byte&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int BYTE = 3;
+
+    /**
+     * The sort of the &lt;tt&gt;short&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int SHORT = 4;
+
+    /**
+     * The sort of the &lt;tt&gt;int&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int INT = 5;
+
+    /**
+     * The sort of the &lt;tt&gt;float&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int FLOAT = 6;
+
+    /**
+     * The sort of the &lt;tt&gt;long&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int LONG = 7;
+
+    /**
+     * The sort of the &lt;tt&gt;double&lt;/tt&gt; type. See {@link #getSort getSort}.
+     */
+    public static final int DOUBLE = 8;
+
+    /**
+     * The sort of array reference types. See {@link #getSort getSort}.
+     */
+    public static final int ARRAY = 9;
+
+    /**
+     * The sort of object reference types. See {@link #getSort getSort}.
+     */
+    public static final int OBJECT = 10;
+
+    /**
+     * The sort of method types. See {@link #getSort getSort}.
+     */
+    public static final int METHOD = 11;
+
+    /**
+     * The &lt;tt&gt;void&lt;/tt&gt; type.
+     */
+<span class="nc" id="L108">    public static final Type VOID_TYPE = new Type(VOID, null, ('V' &lt;&lt; 24)</span>
+            | (5 &lt;&lt; 16) | (0 &lt;&lt; 8) | 0, 1);
+
+    /**
+     * The &lt;tt&gt;boolean&lt;/tt&gt; type.
+     */
+<span class="nc" id="L114">    public static final Type BOOLEAN_TYPE = new Type(BOOLEAN, null, ('Z' &lt;&lt; 24)</span>
+            | (0 &lt;&lt; 16) | (5 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;char&lt;/tt&gt; type.
+     */
+<span class="nc" id="L120">    public static final Type CHAR_TYPE = new Type(CHAR, null, ('C' &lt;&lt; 24)</span>
+            | (0 &lt;&lt; 16) | (6 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;byte&lt;/tt&gt; type.
+     */
+<span class="nc" id="L126">    public static final Type BYTE_TYPE = new Type(BYTE, null, ('B' &lt;&lt; 24)</span>
+            | (0 &lt;&lt; 16) | (5 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;short&lt;/tt&gt; type.
+     */
+<span class="nc" id="L132">    public static final Type SHORT_TYPE = new Type(SHORT, null, ('S' &lt;&lt; 24)</span>
+            | (0 &lt;&lt; 16) | (7 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;int&lt;/tt&gt; type.
+     */
+<span class="nc" id="L138">    public static final Type INT_TYPE = new Type(INT, null, ('I' &lt;&lt; 24)</span>
+            | (0 &lt;&lt; 16) | (0 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;float&lt;/tt&gt; type.
+     */
+<span class="nc" id="L144">    public static final Type FLOAT_TYPE = new Type(FLOAT, null, ('F' &lt;&lt; 24)</span>
+            | (2 &lt;&lt; 16) | (2 &lt;&lt; 8) | 1, 1);
+
+    /**
+     * The &lt;tt&gt;long&lt;/tt&gt; type.
+     */
+<span class="nc" id="L150">    public static final Type LONG_TYPE = new Type(LONG, null, ('J' &lt;&lt; 24)</span>
+            | (1 &lt;&lt; 16) | (1 &lt;&lt; 8) | 2, 1);
+
+    /**
+     * The &lt;tt&gt;double&lt;/tt&gt; type.
+     */
+<span class="nc" id="L156">    public static final Type DOUBLE_TYPE = new Type(DOUBLE, null, ('D' &lt;&lt; 24)</span>
+            | (3 &lt;&lt; 16) | (3 &lt;&lt; 8) | 2, 1);
+
+    // ------------------------------------------------------------------------
+    // Fields
+    // ------------------------------------------------------------------------
+
+    /**
+     * The sort of this Java type.
+     */
+    private final int sort;
+
+    /**
+     * A buffer containing the internal name of this Java type. This field is
+     * only used for reference types.
+     */
+    private final char[] buf;
+
+    /**
+     * The offset of the internal name of this Java type in {@link #buf buf} or,
+     * for primitive types, the size, descriptor and getOpcode offsets for this
+     * type (byte 0 contains the size, byte 1 the descriptor, byte 2 the offset
+     * for IALOAD or IASTORE, byte 3 the offset for all other instructions).
+     */
+    private final int off;
+
+    /**
+     * The length of the internal name of this Java type.
+     */
+    private final int len;
+
+    // ------------------------------------------------------------------------
+    // Constructors
+    // ------------------------------------------------------------------------
+
+    /**
+     * Constructs a reference type.
+     *
+     * @param sort
+     *            the sort of the reference type to be constructed.
+     * @param buf
+     *            a buffer containing the descriptor of the previous type.
+     * @param off
+     *            the offset of this descriptor in the previous buffer.
+     * @param len
+     *            the length of this descriptor.
+     */
+<span class="nc" id="L203">    private Type(final int sort, final char[] buf, final int off, final int len) {</span>
+<span class="nc" id="L204">        this.sort = sort;</span>
+<span class="nc" id="L205">        this.buf = buf;</span>
+<span class="nc" id="L206">        this.off = off;</span>
+<span class="nc" id="L207">        this.len = len;</span>
+<span class="nc" id="L208">    }</span>
+
+    /**
+     * Returns the Java type corresponding to the given type descriptor.
+     *
+     * @param typeDescriptor
+     *            a field or method type descriptor.
+     * @return the Java type corresponding to the given type descriptor.
+     */
+    public static Type getType(final String typeDescriptor) {
+<span class="nc" id="L218">        return getType(typeDescriptor.toCharArray(), 0);</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the given internal name.
+     *
+     * @param internalName
+     *            an internal name.
+     * @return the Java type corresponding to the given internal name.
+     */
+    public static Type getObjectType(final String internalName) {
+<span class="nc" id="L229">        char[] buf = internalName.toCharArray();</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        return new Type(buf[0] == '[' ? ARRAY : OBJECT, buf, 0, buf.length);</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the given method descriptor.
+     * Equivalent to &lt;code&gt;Type.getType(methodDescriptor)&lt;/code&gt;.
+     *
+     * @param methodDescriptor
+     *            a method descriptor.
+     * @return the Java type corresponding to the given method descriptor.
+     */
+    public static Type getMethodType(final String methodDescriptor) {
+<span class="nc" id="L242">        return getType(methodDescriptor.toCharArray(), 0);</span>
+    }
+
+    /**
+     * Returns the Java method type corresponding to the given argument and
+     * return types.
+     *
+     * @param returnType
+     *            the return type of the method.
+     * @param argumentTypes
+     *            the argument types of the method.
+     * @return the Java type corresponding to the given argument and return
+     *         types.
+     */
+    public static Type getMethodType(final Type returnType,
+                                                     final Type... argumentTypes) {
+<span class="nc" id="L258">        return getType(getMethodDescriptor(returnType, argumentTypes));</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the given class.
+     *
+     * @param c
+     *            a class.
+     * @return the Java type corresponding to the given class.
+     */
+    public static Type getType(final Class&lt;?&gt; c) {
+<span class="nc bnc" id="L269" title="All 2 branches missed.">        if (c.isPrimitive()) {</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">            if (c == Integer.TYPE) {</span>
+<span class="nc" id="L271">                return INT_TYPE;</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            } else if (c == Void.TYPE) {</span>
+<span class="nc" id="L273">                return VOID_TYPE;</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">            } else if (c == Boolean.TYPE) {</span>
+<span class="nc" id="L275">                return BOOLEAN_TYPE;</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            } else if (c == Byte.TYPE) {</span>
+<span class="nc" id="L277">                return BYTE_TYPE;</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">            } else if (c == Character.TYPE) {</span>
+<span class="nc" id="L279">                return CHAR_TYPE;</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">            } else if (c == Short.TYPE) {</span>
+<span class="nc" id="L281">                return SHORT_TYPE;</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            } else if (c == Double.TYPE) {</span>
+<span class="nc" id="L283">                return DOUBLE_TYPE;</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            } else if (c == Float.TYPE) {</span>
+<span class="nc" id="L285">                return FLOAT_TYPE;</span>
+            } else /* if (c == Long.TYPE) */{
+<span class="nc" id="L287">                return LONG_TYPE;</span>
+            }
+        } else {
+<span class="nc" id="L290">            return getType(getDescriptor(c));</span>
+        }
+    }
+
+    /**
+     * Returns the Java method type corresponding to the given constructor.
+     *
+     * @param c
+     *            a {@link Constructor Constructor} object.
+     * @return the Java method type corresponding to the given constructor.
+     */
+    public static Type getType(final Constructor&lt;?&gt; c) {
+<span class="nc" id="L302">        return getType(getConstructorDescriptor(c));</span>
+    }
+
+    /**
+     * Returns the Java method type corresponding to the given method.
+     *
+     * @param m
+     *            a {@link Method Method} object.
+     * @return the Java method type corresponding to the given method.
+     */
+    public static Type getType(final Method m) {
+<span class="nc" id="L313">        return getType(getMethodDescriptor(m));</span>
+    }
+
+    /**
+     * Returns the Java types corresponding to the argument types of the given
+     * method descriptor.
+     *
+     * @param methodDescriptor
+     *            a method descriptor.
+     * @return the Java types corresponding to the argument types of the given
+     *         method descriptor.
+     */
+    public static Type[] getArgumentTypes(final String methodDescriptor) {
+<span class="nc" id="L326">        char[] buf = methodDescriptor.toCharArray();</span>
+<span class="nc" id="L327">        int off = 1;</span>
+<span class="nc" id="L328">        int size = 0;</span>
+        while (true) {
+<span class="nc" id="L330">            char car = buf[off++];</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">            if (car == ')') {</span>
+<span class="nc" id="L332">                break;</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            } else if (car == 'L') {</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                while (buf[off++] != ';') {</span>
+                }
+<span class="nc" id="L336">                ++size;</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">            } else if (car != '[') {</span>
+<span class="nc" id="L338">                ++size;</span>
+            }
+<span class="nc" id="L340">        }</span>
+<span class="nc" id="L341">        Type[] args = new Type[size];</span>
+<span class="nc" id="L342">        off = 1;</span>
+<span class="nc" id="L343">        size = 0;</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">        while (buf[off] != ')') {</span>
+<span class="nc" id="L345">            args[size] = getType(buf, off);</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            off += args[size].len + (args[size].sort == OBJECT ? 2 : 0);</span>
+<span class="nc" id="L347">            size += 1;</span>
+        }
+<span class="nc" id="L349">        return args;</span>
+    }
+
+    /**
+     * Returns the Java types corresponding to the argument types of the given
+     * method.
+     *
+     * @param method
+     *            a method.
+     * @return the Java types corresponding to the argument types of the given
+     *         method.
+     */
+    public static Type[] getArgumentTypes(final Method method) {
+<span class="nc" id="L362">        Class&lt;?&gt;[] classes = method.getParameterTypes();</span>
+<span class="nc" id="L363">        Type[] types = new Type[classes.length];</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">        for (int i = classes.length - 1; i &gt;= 0; --i) {</span>
+<span class="nc" id="L365">            types[i] = getType(classes[i]);</span>
+        }
+<span class="nc" id="L367">        return types;</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the return type of the given
+     * method descriptor.
+     *
+     * @param methodDescriptor
+     *            a method descriptor.
+     * @return the Java type corresponding to the return type of the given
+     *         method descriptor.
+     */
+    public static Type getReturnType(final String methodDescriptor) {
+<span class="nc" id="L380">        char[] buf = methodDescriptor.toCharArray();</span>
+<span class="nc" id="L381">        return getType(buf, methodDescriptor.indexOf(')') + 1);</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the return type of the given
+     * method.
+     *
+     * @param method
+     *            a method.
+     * @return the Java type corresponding to the return type of the given
+     *         method.
+     */
+    public static Type getReturnType(final Method method) {
+<span class="nc" id="L394">        return getType(method.getReturnType());</span>
+    }
+
+    /**
+     * Computes the size of the arguments and of the return value of a method.
+     *
+     * @param desc
+     *            the descriptor of a method.
+     * @return the size of the arguments of the method (plus one for the
+     *         implicit this argument), argSize, and the size of its return
+     *         value, retSize, packed into a single int i =
+     *         &lt;tt&gt;(argSize &amp;lt;&amp;lt; 2) | retSize&lt;/tt&gt; (argSize is therefore equal to
+     *         &lt;tt&gt;i &amp;gt;&amp;gt; 2&lt;/tt&gt;, and retSize to &lt;tt&gt;i &amp;amp; 0x03&lt;/tt&gt;).
+     */
+    public static int getArgumentsAndReturnSizes(final String desc) {
+<span class="nc" id="L409">        int n = 1;</span>
+<span class="nc" id="L410">        int c = 1;</span>
+        while (true) {
+<span class="nc" id="L412">            char car = desc.charAt(c++);</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">            if (car == ')') {</span>
+<span class="nc" id="L414">                car = desc.charAt(c);</span>
+<span class="nc bnc" id="L415" title="All 6 branches missed.">                return n &lt;&lt; 2</span>
+                        | (car == 'V' ? 0 : (car == 'D' || car == 'J' ? 2 : 1));
+<span class="nc bnc" id="L417" title="All 2 branches missed.">            } else if (car == 'L') {</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">                while (desc.charAt(c++) != ';') {</span>
+                }
+<span class="nc" id="L420">                n += 1;</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            } else if (car == '[') {</span>
+<span class="nc bnc" id="L422" title="All 2 branches missed.">                while ((car = desc.charAt(c)) == '[') {</span>
+<span class="nc" id="L423">                    ++c;</span>
+                }
+<span class="nc bnc" id="L425" title="All 4 branches missed.">                if (car == 'D' || car == 'J') {</span>
+<span class="nc" id="L426">                    n -= 1;</span>
+                }
+<span class="nc bnc" id="L428" title="All 4 branches missed.">            } else if (car == 'D' || car == 'J') {</span>
+<span class="nc" id="L429">                n += 2;</span>
+            } else {
+<span class="nc" id="L431">                n += 1;</span>
+            }
+<span class="nc" id="L433">        }</span>
+    }
+
+    /**
+     * Returns the Java type corresponding to the given type descriptor. For
+     * method descriptors, buf is supposed to contain nothing more than the
+     * descriptor itself.
+     *
+     * @param buf
+     *            a buffer containing a type descriptor.
+     * @param off
+     *            the offset of this descriptor in the previous buffer.
+     * @return the Java type corresponding to the given type descriptor.
+     */
+    private static Type getType(final char[] buf, final int off) {
+        int len;
+<span class="nc bnc" id="L449" title="All 12 branches missed.">        switch (buf[off]) {</span>
+        case 'V':
+<span class="nc" id="L451">            return VOID_TYPE;</span>
+        case 'Z':
+<span class="nc" id="L453">            return BOOLEAN_TYPE;</span>
+        case 'C':
+<span class="nc" id="L455">            return CHAR_TYPE;</span>
+        case 'B':
+<span class="nc" id="L457">            return BYTE_TYPE;</span>
+        case 'S':
+<span class="nc" id="L459">            return SHORT_TYPE;</span>
+        case 'I':
+<span class="nc" id="L461">            return INT_TYPE;</span>
+        case 'F':
+<span class="nc" id="L463">            return FLOAT_TYPE;</span>
+        case 'J':
+<span class="nc" id="L465">            return LONG_TYPE;</span>
+        case 'D':
+<span class="nc" id="L467">            return DOUBLE_TYPE;</span>
+        case '[':
+<span class="nc" id="L469">            len = 1;</span>
+<span class="nc bnc" id="L470" title="All 2 branches missed.">            while (buf[off + len] == '[') {</span>
+<span class="nc" id="L471">                ++len;</span>
+            }
+<span class="nc bnc" id="L473" title="All 2 branches missed.">            if (buf[off + len] == 'L') {</span>
+<span class="nc" id="L474">                ++len;</span>
+<span class="nc bnc" id="L475" title="All 2 branches missed.">                while (buf[off + len] != ';') {</span>
+<span class="nc" id="L476">                    ++len;</span>
+                }
+            }
+<span class="nc" id="L479">            return new Type(ARRAY, buf, off, len + 1);</span>
+        case 'L':
+<span class="nc" id="L481">            len = 1;</span>
+<span class="nc bnc" id="L482" title="All 2 branches missed.">            while (buf[off + len] != ';') {</span>
+<span class="nc" id="L483">                ++len;</span>
+            }
+<span class="nc" id="L485">            return new Type(OBJECT, buf, off + 1, len - 1);</span>
+            // case '(':
+        default:
+<span class="nc" id="L488">            return new Type(METHOD, buf, off, buf.length - off);</span>
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Accessors
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the sort of this Java type.
+     *
+     * @return {@link #VOID VOID}, {@link #BOOLEAN BOOLEAN}, {@link #CHAR CHAR},
+     *         {@link #BYTE BYTE}, {@link #SHORT SHORT}, {@link #INT INT},
+     *         {@link #FLOAT FLOAT}, {@link #LONG LONG}, {@link #DOUBLE DOUBLE},
+     *         {@link #ARRAY ARRAY}, {@link #OBJECT OBJECT} or {@link #METHOD
+     *         METHOD}.
+     */
+    public int getSort() {
+<span class="nc" id="L506">        return sort;</span>
+    }
+
+    /**
+     * Returns the number of dimensions of this array type. This method should
+     * only be used for an array type.
+     *
+     * @return the number of dimensions of this array type.
+     */
+    public int getDimensions() {
+<span class="nc" id="L516">        int i = 1;</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">        while (buf[off + i] == '[') {</span>
+<span class="nc" id="L518">            ++i;</span>
+        }
+<span class="nc" id="L520">        return i;</span>
+    }
+
+    /**
+     * Returns the type of the elements of this array type. This method should
+     * only be used for an array type.
+     *
+     * @return Returns the type of the elements of this array type.
+     */
+    public Type getElementType() {
+<span class="nc" id="L530">        return getType(buf, off + getDimensions());</span>
+    }
+
+    /**
+     * Returns the binary name of the class corresponding to this type. This
+     * method must not be used on method types.
+     *
+     * @return the binary name of the class corresponding to this type.
+     */
+    public String getClassName() {
+<span class="nc bnc" id="L540" title="All 12 branches missed.">        switch (sort) {</span>
+        case VOID:
+<span class="nc" id="L542">            return &quot;void&quot;;</span>
+        case BOOLEAN:
+<span class="nc" id="L544">            return &quot;boolean&quot;;</span>
+        case CHAR:
+<span class="nc" id="L546">            return &quot;char&quot;;</span>
+        case BYTE:
+<span class="nc" id="L548">            return &quot;byte&quot;;</span>
+        case SHORT:
+<span class="nc" id="L550">            return &quot;short&quot;;</span>
+        case INT:
+<span class="nc" id="L552">            return &quot;int&quot;;</span>
+        case FLOAT:
+<span class="nc" id="L554">            return &quot;float&quot;;</span>
+        case LONG:
+<span class="nc" id="L556">            return &quot;long&quot;;</span>
+        case DOUBLE:
+<span class="nc" id="L558">            return &quot;double&quot;;</span>
+        case ARRAY:
+<span class="nc" id="L560">            StringBuilder sb = new StringBuilder(getElementType().getClassName());</span>
+<span class="nc bnc" id="L561" title="All 2 branches missed.">            for (int i = getDimensions(); i &gt; 0; --i) {</span>
+<span class="nc" id="L562">                sb.append(&quot;[]&quot;);</span>
+            }
+<span class="nc" id="L564">            return sb.toString();</span>
+        case OBJECT:
+<span class="nc" id="L566">            return new String(buf, off, len).replace('/', '.');</span>
+        default:
+<span class="nc" id="L568">            return null;</span>
+        }
+    }
+
+    /**
+     * Returns the internal name of the class corresponding to this object or
+     * array type. The internal name of a class is its fully qualified name (as
+     * returned by Class.getName(), where '.' are replaced by '/'. This method
+     * should only be used for an object or array type.
+     *
+     * @return the internal name of the class corresponding to this object type.
+     */
+    public String getInternalName() {
+<span class="nc" id="L581">        return new String(buf, off, len);</span>
+    }
+
+    /**
+     * Returns the argument types of methods of this type. This method should
+     * only be used for method types.
+     *
+     * @return the argument types of methods of this type.
+     */
+    public Type[] getArgumentTypes() {
+<span class="nc" id="L591">        return getArgumentTypes(getDescriptor());</span>
+    }
+
+    /**
+     * Returns the return type of methods of this type. This method should only
+     * be used for method types.
+     *
+     * @return the return type of methods of this type.
+     */
+    public Type getReturnType() {
+<span class="nc" id="L601">        return getReturnType(getDescriptor());</span>
+    }
+
+    /**
+     * Returns the size of the arguments and of the return value of methods of
+     * this type. This method should only be used for method types.
+     *
+     * @return the size of the arguments (plus one for the implicit this
+     *         argument), argSize, and the size of the return value, retSize,
+     *         packed into a single
+     *         int i = &lt;tt&gt;(argSize &amp;lt;&amp;lt; 2) | retSize&lt;/tt&gt;
+     *         (argSize is therefore equal to &lt;tt&gt;i &amp;gt;&amp;gt; 2&lt;/tt&gt;,
+     *         and retSize to &lt;tt&gt;i &amp;amp; 0x03&lt;/tt&gt;).
+     */
+    public int getArgumentsAndReturnSizes() {
+<span class="nc" id="L616">        return getArgumentsAndReturnSizes(getDescriptor());</span>
+    }
+
+    // ------------------------------------------------------------------------
+    // Conversion to type descriptors
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the descriptor corresponding to this Java type.
+     *
+     * @return the descriptor corresponding to this Java type.
+     */
+    public String getDescriptor() {
+<span class="nc" id="L629">        StringBuffer buf = new StringBuffer();</span>
+<span class="nc" id="L630">        getDescriptor(buf);</span>
+<span class="nc" id="L631">        return buf.toString();</span>
+    }
+
+    /**
+     * Returns the descriptor corresponding to the given argument and return
+     * types.
+     *
+     * @param returnType
+     *            the return type of the method.
+     * @param argumentTypes
+     *            the argument types of the method.
+     * @return the descriptor corresponding to the given argument and return
+     *         types.
+     */
+    public static String getMethodDescriptor(final Type returnType,
+            final Type... argumentTypes) {
+<span class="nc" id="L647">        StringBuffer buf = new StringBuffer();</span>
+<span class="nc" id="L648">        buf.append('(');</span>
+<span class="nc bnc" id="L649" title="All 2 branches missed.">        for (int i = 0; i &lt; argumentTypes.length; ++i) {</span>
+<span class="nc" id="L650">            argumentTypes[i].getDescriptor(buf);</span>
+        }
+<span class="nc" id="L652">        buf.append(')');</span>
+<span class="nc" id="L653">        returnType.getDescriptor(buf);</span>
+<span class="nc" id="L654">        return buf.toString();</span>
+    }
+
+    /**
+     * Appends the descriptor corresponding to this Java type to the given
+     * string buffer.
+     *
+     * @param buf
+     *            the string buffer to which the descriptor must be appended.
+     */
+    private void getDescriptor(final StringBuffer buf) {
+<span class="nc bnc" id="L665" title="All 2 branches missed.">        if (this.buf == null) {</span>
+            // descriptor is in byte 3 of 'off' for primitive types (buf ==
+            // null)
+<span class="nc" id="L668">            buf.append((char) ((off &amp; 0xFF000000) &gt;&gt;&gt; 24));</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">        } else if (sort == OBJECT) {</span>
+<span class="nc" id="L670">            buf.append('L');</span>
+<span class="nc" id="L671">            buf.append(this.buf, off, len);</span>
+<span class="nc" id="L672">            buf.append(';');</span>
+        } else { // sort == ARRAY || sort == METHOD
+<span class="nc" id="L674">            buf.append(this.buf, off, len);</span>
+        }
+<span class="nc" id="L676">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Direct conversion from classes to type descriptors,
+    // without intermediate Type objects
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the internal name of the given class. The internal name of a
+     * class is its fully qualified name, as returned by Class.getName(), where
+     * '.' are replaced by '/'.
+     *
+     * @param c
+     *            an object or array class.
+     * @return the internal name of the given class.
+     */
+    public static String getInternalName(final Class&lt;?&gt; c) {
+<span class="nc" id="L693">        return c.getName().replace('.', '/');</span>
+    }
+
+    /**
+     * Returns the descriptor corresponding to the given Java type.
+     *
+     * @param c
+     *            an object class, a primitive class or an array class.
+     * @return the descriptor corresponding to the given class.
+     */
+    public static String getDescriptor(final Class&lt;?&gt; c) {
+<span class="nc" id="L704">        StringBuffer buf = new StringBuffer();</span>
+<span class="nc" id="L705">        getDescriptor(buf, c);</span>
+<span class="nc" id="L706">        return buf.toString();</span>
+    }
+
+    /**
+     * Returns the descriptor corresponding to the given constructor.
+     *
+     * @param c
+     *            a {@link Constructor Constructor} object.
+     * @return the descriptor of the given constructor.
+     */
+    public static String getConstructorDescriptor(final Constructor&lt;?&gt; c) {
+<span class="nc" id="L717">        Class&lt;?&gt;[] parameters = c.getParameterTypes();</span>
+<span class="nc" id="L718">        StringBuffer buf = new StringBuffer();</span>
+<span class="nc" id="L719">        buf.append('(');</span>
+<span class="nc bnc" id="L720" title="All 2 branches missed.">        for (int i = 0; i &lt; parameters.length; ++i) {</span>
+<span class="nc" id="L721">            getDescriptor(buf, parameters[i]);</span>
+        }
+<span class="nc" id="L723">        return buf.append(&quot;)V&quot;).toString();</span>
+    }
+
+    /**
+     * Returns the descriptor corresponding to the given method.
+     *
+     * @param m
+     *            a {@link Method Method} object.
+     * @return the descriptor of the given method.
+     */
+    public static String getMethodDescriptor(final Method m) {
+<span class="nc" id="L734">        Class&lt;?&gt;[] parameters = m.getParameterTypes();</span>
+<span class="nc" id="L735">        StringBuffer buf = new StringBuffer();</span>
+<span class="nc" id="L736">        buf.append('(');</span>
+<span class="nc bnc" id="L737" title="All 2 branches missed.">        for (int i = 0; i &lt; parameters.length; ++i) {</span>
+<span class="nc" id="L738">            getDescriptor(buf, parameters[i]);</span>
+        }
+<span class="nc" id="L740">        buf.append(')');</span>
+<span class="nc" id="L741">        getDescriptor(buf, m.getReturnType());</span>
+<span class="nc" id="L742">        return buf.toString();</span>
+    }
+
+    /**
+     * Appends the descriptor of the given class to the given string buffer.
+     *
+     * @param buf
+     *            the string buffer to which the descriptor must be appended.
+     * @param c
+     *            the class whose descriptor must be computed.
+     */
+    private static void getDescriptor(final StringBuffer buf, final Class&lt;?&gt; c) {
+<span class="nc" id="L754">        Class&lt;?&gt; d = c;</span>
+        while (true) {
+<span class="nc bnc" id="L756" title="All 2 branches missed.">            if (d.isPrimitive()) {</span>
+                char car;
+<span class="nc bnc" id="L758" title="All 2 branches missed.">                if (d == Integer.TYPE) {</span>
+<span class="nc" id="L759">                    car = 'I';</span>
+<span class="nc bnc" id="L760" title="All 2 branches missed.">                } else if (d == Void.TYPE) {</span>
+<span class="nc" id="L761">                    car = 'V';</span>
+<span class="nc bnc" id="L762" title="All 2 branches missed.">                } else if (d == Boolean.TYPE) {</span>
+<span class="nc" id="L763">                    car = 'Z';</span>
+<span class="nc bnc" id="L764" title="All 2 branches missed.">                } else if (d == Byte.TYPE) {</span>
+<span class="nc" id="L765">                    car = 'B';</span>
+<span class="nc bnc" id="L766" title="All 2 branches missed.">                } else if (d == Character.TYPE) {</span>
+<span class="nc" id="L767">                    car = 'C';</span>
+<span class="nc bnc" id="L768" title="All 2 branches missed.">                } else if (d == Short.TYPE) {</span>
+<span class="nc" id="L769">                    car = 'S';</span>
+<span class="nc bnc" id="L770" title="All 2 branches missed.">                } else if (d == Double.TYPE) {</span>
+<span class="nc" id="L771">                    car = 'D';</span>
+<span class="nc bnc" id="L772" title="All 2 branches missed.">                } else if (d == Float.TYPE) {</span>
+<span class="nc" id="L773">                    car = 'F';</span>
+                } else /* if (d == Long.TYPE) */{
+<span class="nc" id="L775">                    car = 'J';</span>
+                }
+<span class="nc" id="L777">                buf.append(car);</span>
+<span class="nc" id="L778">                return;</span>
+<span class="nc bnc" id="L779" title="All 2 branches missed.">            } else if (d.isArray()) {</span>
+<span class="nc" id="L780">                buf.append('[');</span>
+<span class="nc" id="L781">                d = d.getComponentType();</span>
+            } else {
+<span class="nc" id="L783">                buf.append('L');</span>
+<span class="nc" id="L784">                String name = d.getName();</span>
+<span class="nc" id="L785">                int len = name.length();</span>
+<span class="nc bnc" id="L786" title="All 2 branches missed.">                for (int i = 0; i &lt; len; ++i) {</span>
+<span class="nc" id="L787">                    char car = name.charAt(i);</span>
+<span class="nc bnc" id="L788" title="All 2 branches missed.">                    buf.append(car == '.' ? '/' : car);</span>
+                }
+<span class="nc" id="L790">                buf.append(';');</span>
+<span class="nc" id="L791">                return;</span>
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Corresponding size and opcodes
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the size of values of this type. This method must not be used for
+     * method types.
+     *
+     * @return the size of values of this type, i.e., 2 for &lt;tt&gt;long&lt;/tt&gt; and
+     *         &lt;tt&gt;double&lt;/tt&gt;, 0 for &lt;tt&gt;void&lt;/tt&gt; and 1 otherwise.
+     */
+    public int getSize() {
+        // the size is in byte 0 of 'off' for primitive types (buf == null)
+<span class="nc bnc" id="L809" title="All 2 branches missed.">        return buf == null ? (off &amp; 0xFF) : 1;</span>
+    }
+
+    /**
+     * Returns a JVM instruction opcode adapted to this Java type. This method
+     * must not be used for method types.
+     *
+     * @param opcode
+     *            a JVM instruction opcode. This opcode must be one of ILOAD,
+     *            ISTORE, IALOAD, IASTORE, IADD, ISUB, IMUL, IDIV, IREM, INEG,
+     *            ISHL, ISHR, IUSHR, IAND, IOR, IXOR and IRETURN.
+     * @return an opcode that is similar to the given opcode, but adapted to
+     *         this Java type. For example, if this type is &lt;tt&gt;float&lt;/tt&gt; and
+     *         &lt;tt&gt;opcode&lt;/tt&gt; is IRETURN, this method returns FRETURN.
+     */
+    public int getOpcode(final int opcode) {
+<span class="nc bnc" id="L825" title="All 4 branches missed.">        if (opcode == Opcodes.IALOAD || opcode == Opcodes.IASTORE) {</span>
+            // the offset for IALOAD or IASTORE is in byte 1 of 'off' for
+            // primitive types (buf == null)
+<span class="nc bnc" id="L828" title="All 2 branches missed.">            return opcode + (buf == null ? (off &amp; 0xFF00) &gt;&gt; 8 : 4);</span>
+        } else {
+            // the offset for other instructions is in byte 2 of 'off' for
+            // primitive types (buf == null)
+<span class="nc bnc" id="L832" title="All 2 branches missed.">            return opcode + (buf == null ? (off &amp; 0xFF0000) &gt;&gt; 16 : 4);</span>
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Equals, hashCode and toString
+    // ------------------------------------------------------------------------
+
+    /**
+     * Tests if the given object is equal to this type.
+     *
+     * @param o
+     *            the object to be compared to this type.
+     * @return &lt;tt&gt;true&lt;/tt&gt; if the given object is equal to this type.
+     */
+    @Override
+    public boolean equals(final Object o) {
+<span class="nc bnc" id="L849" title="All 2 branches missed.">        if (this == o) {</span>
+<span class="nc" id="L850">            return true;</span>
+        }
+<span class="nc bnc" id="L852" title="All 2 branches missed.">        if (!(o instanceof Type)) {</span>
+<span class="nc" id="L853">            return false;</span>
+        }
+<span class="nc" id="L855">        Type t = (Type) o;</span>
+<span class="nc bnc" id="L856" title="All 2 branches missed.">        if (sort != t.sort) {</span>
+<span class="nc" id="L857">            return false;</span>
+        }
+<span class="nc bnc" id="L859" title="All 2 branches missed.">        if (sort &gt;= ARRAY) {</span>
+<span class="nc bnc" id="L860" title="All 2 branches missed.">            if (len != t.len) {</span>
+<span class="nc" id="L861">                return false;</span>
+            }
+<span class="nc bnc" id="L863" title="All 2 branches missed.">            for (int i = off, j = t.off, end = i + len; i &lt; end; i++, j++) {</span>
+<span class="nc bnc" id="L864" title="All 2 branches missed.">                if (buf[i] != t.buf[j]) {</span>
+<span class="nc" id="L865">                    return false;</span>
+                }
+            }
+        }
+<span class="nc" id="L869">        return true;</span>
+    }
+
+    /**
+     * Returns a hash code value for this type.
+     *
+     * @return a hash code value for this type.
+     */
+    @Override
+    public int hashCode() {
+<span class="nc" id="L879">        int hc = 13 * sort;</span>
+<span class="nc bnc" id="L880" title="All 2 branches missed.">        if (sort &gt;= ARRAY) {</span>
+<span class="nc bnc" id="L881" title="All 2 branches missed.">            for (int i = off, end = i + len; i &lt; end; i++) {</span>
+<span class="nc" id="L882">                hc = 17 * (hc + buf[i]);</span>
+            }
+        }
+<span class="nc" id="L885">        return hc;</span>
+    }
+
+    /**
+     * Returns a string representation of this type.
+     *
+     * @return the descriptor of this type.
+     */
+    @Override
+    public String toString() {
+<span class="nc" id="L895">        return getDescriptor();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

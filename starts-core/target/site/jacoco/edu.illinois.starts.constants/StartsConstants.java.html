@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StartsConstants.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.constants</a> &gt; <span class="el_source">StartsConstants.java</span></div><h1>StartsConstants.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.constants;
+
+import java.io.File;
+
+/**
+ * Some constants used throughout the STARTS codebase.
+ */
+public interface StartsConstants {
+<span class="nc" id="L13">    String STARTS_DIRECTORY_PATH = &quot;.starts&quot; + File.separator;</span>
+
+    String SUREFIRE_PLUGIN_VM = &quot;org/apache/maven/plugin/surefire/SurefirePlugin&quot;;
+    String SUREFIRE_PLUGIN_BIN = &quot;org.apache.maven.plugin.surefire.SurefirePlugin&quot;;
+
+    String ABSTRACT_SUREFIRE_MOJO_VM = &quot;org/apache/maven/plugin/surefire/AbstractSurefireMojo&quot;;
+    String ABSTRACT_SUREFIRE_MOJO_BIN = &quot;org.apache.maven.plugin.surefire.AbstractSurefireMojo&quot;;
+    String SUREFIRE_INTERCEPTOR_CLASS_VM = &quot;edu/illinois/starts/maven/SurefireMojoInterceptor&quot;;
+
+    String MOJO_EXECUTION_EXCEPTION_BIN = &quot;org.apache.maven.plugin.MojoExecutionException&quot;;
+
+    String EXECUTE_MNAME = &quot;execute&quot;;
+    String EXECUTE_MDESC = &quot;()V&quot;;
+
+    String STARTS_NAME = &quot;STARTS&quot;;
+
+    String ARGLINE_FIELD = &quot;argLine&quot;;
+    String EXCLUDES_FIELD = &quot;excludes&quot;;
+
+    String STARTS_EXCLUDE_PROPERTY = &quot;STARTS_EXCLUDES&quot;;
+
+    // simple characters:
+    String DOT = &quot;.&quot;;
+    String EMPTY = &quot;&quot;;
+    String COMMA = &quot;,&quot;;
+    String COLON = &quot;: &quot;;
+    String WHITE_SPACE = &quot; &quot;;
+    String MILLISECOND = &quot;ms&quot;;
+    String TRUE = &quot;true&quot;;
+    String FALSE = &quot;false&quot;;
+
+    // Logger Messages:
+    String STARS_RUN_STARS = &quot;********** Run **********&quot;;
+    String NO_TESTS_ARE_SELECTED_TO_RUN = &quot;No tests are selected to run.&quot;;
+    String TIME_COMPUTING_NON_AFFECTED = &quot;[TIME]COMPUTING NON-AFFECTED: &quot;;
+    String PROFILE_RUN_MOJO_TOTAL = &quot;[PROFILE] RUN-MOJO-TOTAL: &quot;;
+    String PROFILE_END_OF_RUN_MOJO = &quot;[PROFILE] END-OF-RUN-MOJO: &quot;;
+    String PROFILE_TEST_RUNNING_TIME = &quot;[PROFILE] TEST-RUNNING-TIME: &quot;;
+    String PROFILE_STARTS_MOJO_UPDATE_TIME = &quot;[PROFILE] STARTS-MOJO-UPDATE-TIME: &quot;;
+    String PROFILE_UPDATE_FOR_NEXT_RUN_TOTAL = &quot;[PROFILE] updateForNextRun(total): &quot;;
+
+    String CLASSES = &quot;classes&quot;;
+    String JAVA_HOME = &quot;java.home&quot;;
+    String SF_CLASSPATH = &quot;sf-classpath&quot;;
+    String TEST_CLASSES = &quot;test-classes&quot;;
+    String JAR_CHECKSUMS = &quot;jar-checksums&quot;;
+    String CHANGED_CLASSES = &quot;changed-classes&quot;;
+    String CHECK_IF_ALL_AFFECTED = &quot;checkIfAllAffected&quot;;
+    String STARTS_AFFECTED_TESTS = &quot;STARTS:AffectedTests: &quot;;
+
+    String JAR_EXTENSION = &quot;.jar&quot;;
+    String CLASS_EXTENSION = &quot;.class&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

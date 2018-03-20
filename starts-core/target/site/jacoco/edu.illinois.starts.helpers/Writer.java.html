@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Writer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.helpers</a> &gt; <span class="el_source">Writer.java</span></div><h1>Writer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.helpers;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+
+import edu.illinois.starts.constants.StartsConstants;
+import edu.illinois.starts.util.Logger;
+import edu.illinois.starts.util.Pair;
+import edu.illinois.yasgl.DirectedGraph;
+import edu.illinois.yasgl.Edge;
+import org.apache.commons.codec.binary.Hex;
+
+/**
+ * Utility methods for writing various data to file.
+ */
+<span class="fc" id="L36">public class Writer implements StartsConstants {</span>
+    static final String STARS = &quot;**********&quot;;
+<span class="fc" id="L38">    private static final Logger LOGGER = Logger.getGlobal();</span>
+
+    public static void writeToFile(Collection col, String filename, String artifactsDir) {
+<span class="fc" id="L41">        String outFilename = artifactsDir + File.separator + filename;</span>
+<span class="fc" id="L42">        writeToFile(col, outFilename);</span>
+<span class="fc" id="L43">    }</span>
+
+    public static void writeToFile(Collection col, String filename) {
+<span class="pc" id="L46">        try (BufferedWriter writer = getWriter(filename)) {</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">            if (col.isEmpty()) {</span>
+<span class="nc" id="L48">                writer.write(EMPTY);</span>
+<span class="nc" id="L49">                return;</span>
+            }
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            for (Object elem : col) {</span>
+<span class="fc" id="L52">                writer.write(elem + System.lineSeparator());</span>
+<span class="fc" id="L53">            }</span>
+<span class="pc bpc" id="L54" title="10 of 12 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L55">            ioe.printStackTrace();</span>
+<span class="fc" id="L56">        }</span>
+<span class="fc" id="L57">    }</span>
+
+    public static void writeMapToFile(Map map, String filename) {
+<span class="nc" id="L60">        try (BufferedWriter writer = getWriter(filename)) {</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            if (map.isEmpty()) {</span>
+<span class="nc" id="L62">                writer.write(EMPTY);</span>
+<span class="nc" id="L63">                return;</span>
+            }
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            for (Object key : map.keySet()) {</span>
+<span class="nc" id="L66">                writer.write(key.toString() + COMMA + map.get(key) + System.lineSeparator());</span>
+<span class="nc" id="L67">            }</span>
+<span class="nc bnc" id="L68" title="All 12 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L69">            ioe.printStackTrace();</span>
+<span class="nc" id="L70">        }</span>
+<span class="nc" id="L71">    }</span>
+
+    public static void writeClassPath(String sfPathString, String artifactsDir) {
+<span class="fc" id="L74">        String outFilename = Paths.get(artifactsDir, SF_CLASSPATH).toString();</span>
+<span class="pc" id="L75">        try (BufferedWriter writer = getWriter(outFilename)) {</span>
+<span class="fc" id="L76">            writer.write(sfPathString + System.lineSeparator());</span>
+<span class="pc bpc" id="L77" title="6 of 8 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L78">            ioe.printStackTrace();</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">    }</span>
+
+    public static void writeJarChecksums(List&lt;String&gt; sfPathString, String artifactsDir, List&lt;Pair&gt; jarCheckSums) {
+<span class="nc" id="L83">        String outFilename = Paths.get(artifactsDir, JAR_CHECKSUMS).toString();</span>
+<span class="nc" id="L84">        try (BufferedWriter writer = getWriter(outFilename)) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (jarCheckSums != null) {</span>
+                // we already computed the checksums while checking with old version in RunMojo#hasSameJarChecksum()
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                for (Pair&lt;String, String&gt; pair : jarCheckSums) {</span>
+<span class="nc" id="L88">                    writer.write(pair.toString());</span>
+<span class="nc" id="L89">                    writer.write(System.lineSeparator());</span>
+<span class="nc" id="L90">                }</span>
+            } else {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                for (String path : sfPathString) {</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                    if (path.isEmpty()) {</span>
+<span class="nc" id="L94">                        continue;</span>
+                    }
+<span class="nc" id="L96">                    writer.write(getJarToChecksumMapping(path).toString());</span>
+<span class="nc" id="L97">                    writer.write(System.lineSeparator());</span>
+<span class="nc" id="L98">                }</span>
+            }
+<span class="nc bnc" id="L100" title="All 8 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L101">            ioe.printStackTrace();</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">    }</span>
+
+    /**
+     * Write the graph to file, together with any new edges (if any) that we get
+     * from parsing classes that changed.
+     *
+     * @param graph         The graph that we want to write
+     * @param artifactsDir  The directory in which we are writing STARTS artifacts
+     * @param print         Write graph to file if true
+     * @param graphFile     The file in which to optionally write the graph
+     */
+    public static void writeGraph(DirectedGraph&lt;String&gt; graph, String artifactsDir, boolean print, String graphFile) {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (print) {</span>
+<span class="fc" id="L116">            String outFilename = artifactsDir + File.separator + graphFile;</span>
+<span class="pc" id="L117">            try (BufferedWriter writer = getWriter(outFilename)) {</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">                if (graph == null) {</span>
+<span class="nc" id="L119">                    writer.write(EMPTY);</span>
+<span class="nc" id="L120">                    return;</span>
+                }
+                // write all the edges in the graph
+<span class="fc bfc" id="L123" title="All 2 branches covered.">                for (Edge&lt;String&gt; edge : graph.getEdges()) {</span>
+<span class="fc" id="L124">                    writer.write(edge.getSource() + WHITE_SPACE + edge.getDestination() + System.lineSeparator());</span>
+<span class="fc" id="L125">                }</span>
+<span class="pc bpc" id="L126" title="10 of 12 branches missed.">            } catch (IOException ioe) {</span>
+<span class="nc" id="L127">                ioe.printStackTrace();</span>
+<span class="fc" id="L128">            }</span>
+        }
+<span class="fc" id="L130">    }</span>
+
+    public static void writeDepsToFile(Map&lt;String, Set&lt;String&gt;&gt; deps, String fileName) {
+<span class="nc" id="L133">        try (BufferedWriter writer = getWriter(fileName)) {</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            for (String key : deps.keySet()) {</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                for (String value : deps.get(key)) {</span>
+<span class="nc" id="L136">                    writer.write(key + WHITE_SPACE + value + System.lineSeparator());</span>
+<span class="nc" id="L137">                }</span>
+<span class="nc" id="L138">            }</span>
+<span class="nc bnc" id="L139" title="All 8 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L140">            ioe.printStackTrace();</span>
+<span class="nc" id="L141">        }</span>
+<span class="nc" id="L142">    }</span>
+
+    public static void writeTCSimple(Map&lt;String, Set&lt;String&gt;&gt; testDeps, String artifactsDir, String tcFile) {
+<span class="fc" id="L145">        String outFilename = artifactsDir + File.separator + tcFile;</span>
+<span class="pc" id="L146">        try (BufferedWriter writer = getWriter(outFilename)) {</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">            for (String test : testDeps.keySet()) {</span>
+<span class="fc" id="L148">                writer.write(test + WHITE_SPACE + test);</span>
+<span class="fc" id="L149">                Iterator&lt;String&gt; it = testDeps.get(test).iterator();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">                while (it.hasNext()) {</span>
+<span class="fc" id="L151">                    writer.write(COMMA + it.next());</span>
+                }
+<span class="fc" id="L153">                writer.newLine();</span>
+<span class="fc" id="L154">            }</span>
+<span class="pc bpc" id="L155" title="6 of 8 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L156">            ioe.printStackTrace();</span>
+<span class="fc" id="L157">        }</span>
+<span class="fc" id="L158">    }</span>
+
+    public static BufferedWriter getWriter(String filePath) {
+<span class="fc" id="L161">        Path path = Paths.get(filePath);</span>
+<span class="fc" id="L162">        BufferedWriter writer = null;</span>
+        try {
+<span class="pc bpc" id="L164" title="2 of 4 branches missed.">            if (path.getParent() != null &amp;&amp; !Files.exists(path.getParent())) {</span>
+<span class="nc" id="L165">                Files.createDirectories(path.getParent());</span>
+            }
+<span class="fc" id="L167">            writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8);</span>
+<span class="nc" id="L168">        } catch (IOException e1) {</span>
+<span class="nc" id="L169">            e1.printStackTrace();</span>
+<span class="fc" id="L170">        }</span>
+<span class="fc" id="L171">        return writer;</span>
+    }
+
+    public static String pathToString(List&lt;String&gt; classPath) {
+<span class="fc" id="L175">        long start = System.currentTimeMillis();</span>
+<span class="fc" id="L176">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L177">        Iterator&lt;String&gt; iterator = classPath.iterator();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        while (iterator.hasNext()) {</span>
+<span class="fc" id="L179">            sb.append(iterator.next());</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">            if (iterator.hasNext()) {</span>
+<span class="fc" id="L181">                sb.append(File.pathSeparator);</span>
+            }
+        }
+<span class="fc" id="L184">        long end = System.currentTimeMillis();</span>
+<span class="fc" id="L185">        LOGGER.log(Level.FINE, &quot;[PROFILE] updateForNextRun(pathToString): &quot; + millsToSeconds(end - start));</span>
+<span class="fc" id="L186">        return sb.toString();</span>
+    }
+
+    public static List&lt;String&gt; fqnsToExcludePath(Collection&lt;String&gt; fqns) {
+<span class="nc" id="L190">        List&lt;String&gt; paths = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for (String fqn : fqns) {</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (fqn.isEmpty()) {</span>
+<span class="nc" id="L193">                continue;</span>
+            }
+<span class="nc" id="L195">            paths.add(fqnToExcludePath(fqn));</span>
+<span class="nc" id="L196">        }</span>
+<span class="nc" id="L197">        Collections.sort(paths);</span>
+<span class="nc" id="L198">        return paths;</span>
+    }
+
+    public static String fqnToExcludePath(String fqn) {
+<span class="nc" id="L202">        return fqn.replace(DOT, File.separator) + &quot;.*&quot;;</span>
+    }
+
+    public static void writeToLog(Set&lt;String&gt; set, String title, Logger logger) {
+<span class="nc" id="L206">        List&lt;String&gt; list = new ArrayList&lt;&gt;(set);</span>
+<span class="nc" id="L207">        Collections.sort(list);</span>
+<span class="nc" id="L208">        logger.log(Level.INFO, EMPTY);</span>
+<span class="nc" id="L209">        logger.log(Level.INFO, STARS + WHITE_SPACE + title + WHITE_SPACE + STARS);</span>
+
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        for (String listItem : list) {</span>
+<span class="nc" id="L212">            logger.log(Level.INFO, listItem);</span>
+<span class="nc" id="L213">        }</span>
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if (set.isEmpty()) {</span>
+<span class="nc" id="L216">            logger.log(Level.INFO, title + &quot; found no classes.&quot;);</span>
+        }
+<span class="nc" id="L218">    }</span>
+
+    public static String millsToSeconds(long value) {
+<span class="fc" id="L221">        return String.format(&quot;%.03f&quot;, (double) value / 1000.0);</span>
+    }
+
+    /**
+     * Compute the checksum for the given map and return the jar
+     * and the checksum as a string.
+     *
+     * @param jar  The jar whose checksum we need to compute.
+     */
+    public static Pair&lt;String, String&gt; getJarToChecksumMapping(String jar) {
+<span class="nc" id="L231">        Pair&lt;String, String&gt; pair = new Pair&lt;&gt;(jar, &quot;-1&quot;);</span>
+        byte[] bytes;
+<span class="nc" id="L233">        int bufSize = 65536 * 2;</span>
+        try {
+<span class="nc" id="L235">            MessageDigest md = MessageDigest.getInstance(&quot;MD5&quot;);</span>
+<span class="nc" id="L236">            InputStream is = Files.newInputStream(Paths.get(jar));</span>
+<span class="nc" id="L237">            bytes = new byte[bufSize];</span>
+<span class="nc" id="L238">            int size = is.read(bytes, 0, bufSize);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            while (size &gt;= 0) {</span>
+<span class="nc" id="L240">                md.update(bytes, 0, size);</span>
+<span class="nc" id="L241">                size = is.read(bytes, 0, bufSize);</span>
+            }
+<span class="nc" id="L243">            pair.setValue(Hex.encodeHexString(md.digest()));</span>
+<span class="nc" id="L244">        } catch (IOException ioe) {</span>
+<span class="nc" id="L245">            ioe.printStackTrace();</span>
+<span class="nc" id="L246">        } catch (NoSuchAlgorithmException nsae) {</span>
+<span class="nc" id="L247">            nsae.printStackTrace();</span>
+<span class="nc" id="L248">        }</span>
+<span class="nc" id="L249">        return pair;</span>
+    }
+
+    /**
+     * Convert the result of URL.toExternalForm() on classes in the program to a fully-qualified name.
+     * @param url External form of the URL to convert
+     * @return A fully-qualified name of the URL
+     */
+    public static String urlToFQN(String url) {
+        // ASSUMPTION: &quot;classes/&quot; rarely occurs in the rest of the path
+<span class="nc" id="L259">        return url.split(CLASSES + File.separator)[1].replace(CLASS_EXTENSION, EMPTY).replace(File.separator, DOT);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

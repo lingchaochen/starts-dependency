@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SurefireMojoInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.maven</a> &gt; <span class="el_source">SurefireMojoInterceptor.java</span></div><h1>SurefireMojoInterceptor.java</h1><pre class="source lang-java linenums">package edu.illinois.starts.maven;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.logging.Level;
+
+import edu.illinois.starts.constants.StartsConstants;
+
+/** This class is from Ekstazi. **/
+
+<span class="nc" id="L12">public final class SurefireMojoInterceptor extends AbstractMojoInterceptor implements StartsConstants {</span>
+    static final String UNSUPPORTED_SUREFIRE_VERSION_EXCEPTION = &quot;Unsupported surefire version. &quot;;
+
+    public static void execute(Object mojo) throws Exception {
+<span class="nc bnc" id="L16" title="All 2 branches missed.">        if (!isSurefirePlugin(mojo)) {</span>
+<span class="nc" id="L17">            return;</span>
+        }
+<span class="nc bnc" id="L19" title="All 2 branches missed.">        if (isAlreadyInvoked(mojo)) {</span>
+<span class="nc" id="L20">            return;</span>
+        }
+<span class="nc" id="L22">        checkSurefireVersion(mojo);</span>
+        try {
+<span class="nc" id="L24">            updateExcludes(mojo);</span>
+<span class="nc" id="L25">        } catch (Exception ex) {</span>
+<span class="nc" id="L26">            throwMojoExecutionException(mojo, UNSUPPORTED_SUREFIRE_VERSION_EXCEPTION, ex);</span>
+<span class="nc" id="L27">        }</span>
+<span class="nc" id="L28">    }</span>
+
+    private static boolean isSurefirePlugin(Object mojo) throws Exception {
+<span class="nc" id="L31">        return mojo.getClass().getName().equals(SUREFIRE_PLUGIN_BIN);</span>
+    }
+
+    private static boolean isAlreadyInvoked(Object mojo) throws Exception {
+<span class="nc" id="L35">        String key = STARTS_NAME + System.identityHashCode(mojo);</span>
+<span class="nc" id="L36">        String value = System.getProperty(key);</span>
+<span class="nc" id="L37">        System.setProperty(key, &quot;STARTS-invoked&quot;);</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        return value != null;</span>
+    }
+
+    private static void checkSurefireVersion(Object mojo) throws Exception {
+        try {
+<span class="nc" id="L43">            getField(ARGLINE_FIELD, mojo);</span>
+<span class="nc" id="L44">            getField(EXCLUDES_FIELD, mojo);</span>
+<span class="nc" id="L45">        } catch (NoSuchMethodException ex) {</span>
+<span class="nc" id="L46">            throwMojoExecutionException(mojo, UNSUPPORTED_SUREFIRE_VERSION_EXCEPTION</span>
+                     + &quot;Try setting excludesFile in the surefire configuration.&quot;, ex);
+<span class="nc" id="L48">        }</span>
+<span class="nc" id="L49">    }</span>
+
+    private static void updateExcludes(Object mojo) throws Exception {
+<span class="nc" id="L52">        LOGGER.log(Level.FINE, &quot;updating Excludes&quot;);</span>
+<span class="nc" id="L53">        List&lt;String&gt; currentExcludes = getListField(EXCLUDES_FIELD, mojo);</span>
+<span class="nc" id="L54">        List&lt;String&gt; newExcludes = new ArrayList&lt;&gt;(Arrays.asList(System.getProperty(STARTS_EXCLUDE_PROPERTY)</span>
+<span class="nc" id="L55">                .replace(&quot;[&quot;, EMPTY).replace(&quot;]&quot;, EMPTY).split(COMMA)));</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        if (currentExcludes != null) {</span>
+<span class="nc" id="L57">            newExcludes.addAll(currentExcludes);</span>
+        } else {
+<span class="nc" id="L59">            newExcludes.add(&quot;**/*$*&quot;);</span>
+        }
+<span class="nc" id="L61">        setField(EXCLUDES_FIELD, mojo, newExcludes);</span>
+<span class="nc" id="L62">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

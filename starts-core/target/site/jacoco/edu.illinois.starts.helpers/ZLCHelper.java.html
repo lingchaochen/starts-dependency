@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZLCHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.helpers</a> &gt; <span class="el_source">ZLCHelper.java</span></div><h1>ZLCHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.helpers;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+
+import edu.illinois.starts.constants.StartsConstants;
+import edu.illinois.starts.data.ZLCData;
+import edu.illinois.starts.util.ChecksumUtil;
+import edu.illinois.starts.util.Logger;
+import edu.illinois.starts.util.Pair;
+import org.ekstazi.util.Types;
+
+/**
+ * Utility methods for dealing with the .zlc format.
+ */
+public class ZLCHelper implements StartsConstants {
+    public static final String zlcFile = &quot;deps.zlc&quot;;
+    public static final String STAR_FILE = &quot;file:*&quot;;
+<span class="nc" id="L34">    private static final Logger LOGGER = Logger.getGlobal();</span>
+    private static Map&lt;String, ZLCData&gt; zlcDataMap;
+    private static final String NOEXISTING_ZLCFILE_FIRST_RUN = &quot;@NoExistingZLCFile. First Run?&quot;;
+
+<span class="nc" id="L38">    public ZLCHelper() {</span>
+<span class="nc" id="L39">        zlcDataMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L40">    }</span>
+
+// TODO: Uncomment and fix this method. The problem is that it does not track newly added tests correctly
+//    public static void updateZLCFile(Map&lt;String, Set&lt;String&gt;&gt; testDeps, ClassLoader loader,
+//                                     String artifactsDir, Set&lt;String&gt; changed) {
+//        long start = System.currentTimeMillis();
+//        File file = new File(artifactsDir, zlcFile);
+//        if (! file.exists()) {
+//            Set&lt;ZLCData&gt; zlc = createZLCData(testDeps, loader);
+//            Writer.writeToFile(zlc, zlcFile, artifactsDir);
+//        } else {
+//            Set&lt;ZLCData&gt; zlcData = new HashSet&lt;&gt;();
+//            if (zlcDataMap != null) {
+//                for (ZLCData data : zlcDataMap.values()) {
+//                    String extForm = data.getUrl().toExternalForm();
+//                    if (changed.contains(extForm)) {
+//                         we need to update tests for this zlcData before adding
+//                        String fqn = Writer.toFQN(extForm);
+//                        Set&lt;String&gt; tests = new HashSet&lt;&gt;();
+//                        if (testDeps.keySet().contains(fqn)) {
+//                             a test class changed, it affects on itself
+//                            tests.add(fqn);
+//                        }
+//                        for (String test : testDeps.keySet()) {
+//                            if (testDeps.get(test).contains(fqn)) tests.add(test);
+//                        }
+//                        if (tests.isEmpty()) {
+//                             this dep no longer has ant tests depending on it???
+//                            continue;
+//                        }
+//                        data.setTests(tests);
+//                    }
+//                    zlcData.add(data);
+//                }
+//            }
+//            Writer.writeToFile(zlcData, zlcFile, artifactsDir);
+//        }
+//        long end = System.currentTimeMillis();
+//        System.out.println(TIME_UPDATING_CHECKSUMS + (end - start) + MS);
+//    }
+
+    public static void updateZLCFile(Map&lt;String, Set&lt;String&gt;&gt; testDeps, ClassLoader loader,
+                                     String artifactsDir, Set&lt;String&gt; unreached) {
+        // TODO: Optimize this by only recomputing the checksum+tests for changed classes and newly added tests
+<span class="nc" id="L84">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L85">        List&lt;ZLCData&gt; zlc = createZLCData(testDeps, loader);</span>
+<span class="nc" id="L86">        Writer.writeToFile(zlc, zlcFile, artifactsDir);</span>
+<span class="nc" id="L87">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L88">        LOGGER.log(Level.FINE, &quot;[PROFILE] updateForNextRun(updateZLCFile): &quot; + Writer.millsToSeconds(end - start));</span>
+<span class="nc" id="L89">    }</span>
+
+    public static List&lt;ZLCData&gt; createZLCData(Map&lt;String, Set&lt;String&gt;&gt; testDeps, ClassLoader loader) {
+<span class="nc" id="L92">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L93">        List&lt;ZLCData&gt; zlcData = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L94">        Set&lt;String&gt; deps = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L95">        ChecksumUtil checksumUtil = new ChecksumUtil(true);</span>
+        // merge all the deps for all tests into a single set
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        for (String test : testDeps.keySet()) {</span>
+<span class="nc" id="L98">            deps.addAll(testDeps.get(test));</span>
+<span class="nc" id="L99">        }</span>
+
+        // for each dep, find it's url, checksum and tests that depend on it
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        for (String dep : deps) {</span>
+<span class="nc" id="L103">            String klas = ChecksumUtil.toClassName(dep);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (Types.isIgnorableInternalName(klas)) {</span>
+<span class="nc" id="L105">                continue;</span>
+            }
+<span class="nc" id="L107">            URL url = loader.getResource(klas);</span>
+<span class="nc bnc" id="L108" title="All 4 branches missed.">            if (url == null || ChecksumUtil.isWellKnownUrl(url.toExternalForm())) {</span>
+<span class="nc" id="L109">                continue;</span>
+            }
+<span class="nc" id="L111">            String checksum = checksumUtil.computeSingleCheckSum(url);</span>
+<span class="nc" id="L112">            Set&lt;String&gt; tests = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            for (String test : testDeps.keySet()) {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                if (testDeps.get(test).contains(dep)) {</span>
+<span class="nc" id="L115">                    tests.add(test);</span>
+                }
+<span class="nc" id="L117">            }</span>
+<span class="nc" id="L118">            zlcData.add(new ZLCData(url, checksum, tests));</span>
+<span class="nc" id="L119">        }</span>
+<span class="nc" id="L120">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L121">        LOGGER.log(Level.FINEST, &quot;[TIME]CREATING ZLC FILE: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L122">        return zlcData;</span>
+    }
+
+    public static Pair&lt;Set&lt;String&gt;, Set&lt;String&gt;&gt; getChangedData(String artifactsDir, boolean cleanBytes) {
+<span class="nc" id="L126">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L127">        File zlc = new File(artifactsDir, zlcFile);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (!zlc.exists()) {</span>
+<span class="nc" id="L129">            LOGGER.log(Level.FINEST, NOEXISTING_ZLCFILE_FIRST_RUN);</span>
+<span class="nc" id="L130">            return null;</span>
+        }
+<span class="nc" id="L132">        Set&lt;String&gt; changedClasses = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L133">        Set&lt;String&gt; nonAffected = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L134">        Set&lt;String&gt; affected = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L135">        Set&lt;String&gt; starTests = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L136">        ChecksumUtil checksumUtil = new ChecksumUtil(cleanBytes);</span>
+        try {
+<span class="nc" id="L138">            List&lt;String&gt; zlcLines = Files.readAllLines(zlc.toPath(), Charset.defaultCharset());</span>
+<span class="nc" id="L139">            String firstLine = zlcLines.get(0);</span>
+<span class="nc" id="L140">            String space = WHITE_SPACE;</span>
+
+            // check whether the first line is for *
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            if (firstLine.startsWith(STAR_FILE)) {</span>
+<span class="nc" id="L144">                String[] parts = firstLine.split(space);</span>
+<span class="nc" id="L145">                starTests = fromCSV(parts[2]);</span>
+<span class="nc" id="L146">                zlcLines.remove(0);</span>
+            }
+
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            for (String line : zlcLines) {</span>
+<span class="nc" id="L150">                String[] parts = line.split(space);</span>
+<span class="nc" id="L151">                String stringURL = parts[0];</span>
+<span class="nc" id="L152">                String oldCheckSum = parts[1];</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                Set&lt;String&gt; tests = parts.length == 3 ? fromCSV(parts[2]) : new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L154">                nonAffected.addAll(tests);</span>
+<span class="nc" id="L155">                URL url = new URL(stringURL);</span>
+<span class="nc" id="L156">                String newCheckSum = checksumUtil.computeSingleCheckSum(url);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                if (!newCheckSum.equals(oldCheckSum)) {</span>
+<span class="nc" id="L158">                    affected.addAll(tests);</span>
+<span class="nc" id="L159">                    changedClasses.add(stringURL);</span>
+                }
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                if (newCheckSum.equals(&quot;-1&quot;)) {</span>
+                    // a class was deleted or auto-generated, no need to track it in zlc
+<span class="nc" id="L163">                    LOGGER.log(Level.FINEST, &quot;Ignoring: &quot; + url);</span>
+<span class="nc" id="L164">                    continue;</span>
+                }
+<span class="nc" id="L166">                ZLCData data = new ZLCData(url, newCheckSum, tests);</span>
+<span class="nc" id="L167">                zlcDataMap.put(stringURL, data);</span>
+<span class="nc" id="L168">            }</span>
+<span class="nc" id="L169">        } catch (IOException ioe) {</span>
+<span class="nc" id="L170">            ioe.printStackTrace();</span>
+<span class="nc" id="L171">        }</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        if (!changedClasses.isEmpty()) {</span>
+            // there was some change so we need to add all tests that reach star, if any
+<span class="nc" id="L174">            affected.addAll(starTests);</span>
+        }
+<span class="nc" id="L176">        nonAffected.removeAll(affected);</span>
+<span class="nc" id="L177">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L178">        LOGGER.log(Level.FINEST, TIME_COMPUTING_NON_AFFECTED + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L179">        return new Pair&lt;&gt;(nonAffected, changedClasses);</span>
+    }
+
+    private static Set&lt;String&gt; fromCSV(String tests) {
+<span class="nc" id="L183">        return new HashSet&lt;&gt;(Arrays.asList(tests.split(COMMA)));</span>
+    }
+
+    public static Set&lt;String&gt; getExistingClasses(String artifactsDir) {
+<span class="nc" id="L187">        Set&lt;String&gt; existingClasses = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L188">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L189">        File zlc = new File(artifactsDir, zlcFile);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (!zlc.exists()) {</span>
+<span class="nc" id="L191">            LOGGER.log(Level.FINEST, NOEXISTING_ZLCFILE_FIRST_RUN);</span>
+<span class="nc" id="L192">            return existingClasses;</span>
+        }
+        try {
+<span class="nc" id="L195">            List&lt;String&gt; zlcLines = Files.readAllLines(zlc.toPath(), Charset.defaultCharset());</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">            for (String line : zlcLines) {</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                if (line.startsWith(&quot;file&quot;)) {</span>
+<span class="nc" id="L198">                    existingClasses.add(Writer.urlToFQN(line.split(WHITE_SPACE)[0]));</span>
+                }
+<span class="nc" id="L200">            }</span>
+<span class="nc" id="L201">        } catch (IOException ioe) {</span>
+<span class="nc" id="L202">            ioe.printStackTrace();</span>
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L205">        LOGGER.log(Level.FINEST, &quot;[TIME]COMPUTING EXISTING CLASSES: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L206">        return existingClasses;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

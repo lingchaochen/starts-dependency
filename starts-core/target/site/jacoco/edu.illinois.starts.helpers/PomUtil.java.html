@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PomUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.helpers</a> &gt; <span class="el_source">PomUtil.java</span></div><h1>PomUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.helpers;
+
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+
+import edu.illinois.starts.constants.StartsConstants;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+
+/**
+ * Utility methods for manipulating pom.xml files.
+ */
+<span class="nc" id="L23">public class PomUtil {</span>
+    static final String MIN_SUREFIRE_VERSION = &quot;2.13&quot;;
+
+    public static String extractParamValue(Plugin plugin, String elem) throws MojoExecutionException {
+<span class="nc" id="L27">        String value = null;</span>
+<span class="nc" id="L28">        Xpp3Dom dom = (Xpp3Dom) plugin.getConfiguration();</span>
+<span class="nc bnc" id="L29" title="All 2 branches missed.">        if (dom != null) {</span>
+<span class="nc" id="L30">            Xpp3Dom child = dom.getChild(elem);</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">            value = child == null ? null : child.getValue();</span>
+        }
+<span class="nc" id="L33">        return value;</span>
+    }
+
+    public static List&lt;String&gt; extractIncludeExcludes(Plugin plugin, String elem) throws MojoExecutionException {
+<span class="nc" id="L37">        List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+        String value;
+<span class="nc" id="L39">        Xpp3Dom dom = (Xpp3Dom) plugin.getConfiguration();</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        if (dom != null) {</span>
+<span class="nc" id="L41">            Xpp3Dom outer = dom.getChild(elem + &quot;s&quot;);</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">            if (outer != null) {</span>
+<span class="nc" id="L43">                Xpp3Dom[] children = outer.getChildren(elem);</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">                for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">                    value = children[i].getValue() == null ? null : children[i].getValue();</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">                    if (value != null) {</span>
+<span class="nc" id="L47">                        values.add(value);</span>
+                    }
+                }
+            }
+        }
+<span class="nc" id="L52">        return values;</span>
+    }
+
+    public static Plugin getSfPlugin(MavenProject project) throws MojoExecutionException {
+<span class="nc" id="L56">        Plugin sfPlugin = lookupPlugin(&quot;org.apache.maven.plugins:maven-surefire-plugin&quot;, project);</span>
+<span class="nc" id="L57">        checkSFVersion(sfPlugin);</span>
+<span class="nc" id="L58">        return sfPlugin;</span>
+    }
+
+    public static void checkSFVersion(Plugin sfPlugin) throws MojoExecutionException {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (sfPlugin == null) {</span>
+<span class="nc" id="L63">            throw new MojoExecutionException(&quot;Surefire plugin not available&quot;);</span>
+        }
+
+<span class="nc" id="L66">        String version = sfPlugin.getVersion();</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (MIN_SUREFIRE_VERSION.compareTo(version) &gt; 0) {</span>
+<span class="nc" id="L68">            throw new MojoExecutionException(&quot;Unsupported Surefire version: &quot; + version</span>
+                    + &quot;. Use version &quot; + MIN_SUREFIRE_VERSION + &quot; and above.&quot;);
+        }
+<span class="nc" id="L71">    }</span>
+
+    public static Plugin lookupPlugin(String name, MavenProject project) {
+<span class="nc" id="L74">        Plugin plugin = null;</span>
+<span class="nc" id="L75">        List&lt;Plugin&gt; plugins = project.getBuildPlugins();</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        for (Plugin p : plugins) {</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (p.getKey().equalsIgnoreCase(name)) {</span>
+<span class="nc" id="L78">                plugin = p;</span>
+<span class="nc" id="L79">                break;</span>
+            }
+<span class="nc" id="L81">        }</span>
+        // Did not find plugin under &lt;build&gt;&lt;plugins&gt;,
+        // check under &lt;build&gt;&lt;pluginManagement&gt;&lt;plugins&gt;
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (plugin == null) {</span>
+<span class="nc" id="L85">            plugins = project.getPluginManagement().getPlugins();</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">            for (Plugin p : plugins) {</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (p.getKey().equalsIgnoreCase(name)) {</span>
+<span class="nc" id="L88">                    plugin = p;</span>
+<span class="nc" id="L89">                    break;</span>
+                }
+<span class="nc" id="L91">            }</span>
+        }
+<span class="nc" id="L93">        return plugin;</span>
+    }
+
+    public static List&lt;String&gt; getFromPom(String type, MavenProject project) throws MojoExecutionException {
+<span class="nc" id="L97">        String file = type + &quot;sFile&quot;;</span>
+<span class="nc" id="L98">        List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L99">        List&lt;String&gt; typeValues = extractIncludeExcludes(getSfPlugin(project), type);</span>
+<span class="nc" id="L100">        values.addAll(typeValues);</span>
+<span class="nc" id="L101">        String fileName = extractParamValue(getSfPlugin(project), file);</span>
+<span class="nc bnc" id="L102" title="All 4 branches missed.">        if (fileName != null &amp;&amp; !fileName.equals(&quot;myExcludes&quot;)) {</span>
+            try {
+<span class="nc" id="L104">                values.addAll(Files.readAllLines(Paths.get(fileName), Charset.defaultCharset()));</span>
+<span class="nc" id="L105">            } catch (IOException ioe) {</span>
+<span class="nc" id="L106">                ioe.printStackTrace();</span>
+<span class="nc" id="L107">            }</span>
+        }
+<span class="nc" id="L109">        return values;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

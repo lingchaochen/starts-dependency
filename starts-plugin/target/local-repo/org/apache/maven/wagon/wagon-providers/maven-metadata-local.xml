@@ -1,0 +1,10 @@
+<metadata>
+  <groupId>org.apache.maven.wagon</groupId>
+  <artifactId>wagon-providers</artifactId>
+  <versioning>
+    <versions>
+      <version>1.0-beta-6</version>
+    </versions>
+    <lastUpdated>20180320162438</lastUpdated>
+  </versioning>
+</metadata>

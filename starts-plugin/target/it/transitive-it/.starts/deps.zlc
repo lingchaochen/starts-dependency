@@ -1,0 +1,8 @@
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/test-classes/transitive/GrandChildTest.class 3857212352 transitive.GrandChildTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/classes/transitive/Base.class 1516029195 transitive.SiblingTest,transitive.GrandChildTest,transitive.ChildTest,transitive.BaseTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/test-classes/transitive/BaseTest.class 386175611 transitive.BaseTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/classes/transitive/GrandChild.class 2821110478 transitive.GrandChildTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/test-classes/transitive/SiblingTest.class 1833834171 transitive.SiblingTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/classes/transitive/Child.class 2088415637 transitive.GrandChildTest,transitive.ChildTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/classes/transitive/Sibling.class 982962463 transitive.SiblingTest
+file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/transitive-it/target/test-classes/transitive/ChildTest.class 1002417901 transitive.ChildTest

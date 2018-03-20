@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenCFT.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.maven</a> &gt; <span class="el_source">MavenCFT.java</span></div><h1>MavenCFT.java</h1><pre class="source lang-java linenums">package edu.illinois.starts.maven;
+
+import java.lang.instrument.ClassFileTransformer;
+import java.lang.instrument.IllegalClassFormatException;
+import java.security.ProtectionDomain;
+
+import edu.illinois.starts.asm.ClassReader;
+import edu.illinois.starts.asm.ClassVisitor;
+import edu.illinois.starts.asm.ClassWriter;
+import edu.illinois.starts.asm.MethodVisitor;
+import edu.illinois.starts.asm.Opcodes;
+import edu.illinois.starts.constants.StartsConstants;
+
+/** This class is from Ekstazi. **/
+
+<span class="nc" id="L16">public final class MavenCFT implements ClassFileTransformer, StartsConstants {</span>
+
+    private static class MavenMethodVisitor extends MethodVisitor {
+        private final String mavenMethodName;
+        private final String mavenMethodDesc;
+
+        private final String mavenInterceptorName;
+
+        public MavenMethodVisitor(String interceptorName, String methodName, String methodDesc, MethodVisitor mv) {
+<span class="nc" id="L25">            super(Opcodes.ASM5, mv);</span>
+<span class="nc" id="L26">            this.mavenInterceptorName = interceptorName;</span>
+<span class="nc" id="L27">            this.mavenMethodName = methodName;</span>
+<span class="nc" id="L28">            this.mavenMethodDesc = methodDesc;</span>
+<span class="nc" id="L29">        }</span>
+
+        public void visitCode() {
+<span class="nc" id="L32">            mv.visitVarInsn(Opcodes.ALOAD, 0);</span>
+<span class="nc" id="L33">            mv.visitMethodInsn(Opcodes.INVOKESTATIC, mavenInterceptorName, mavenMethodName,</span>
+<span class="nc" id="L34">                    mavenMethodDesc.replace(&quot;(&quot;, &quot;(Ljava/lang/Object;&quot;), false);</span>
+<span class="nc" id="L35">            mv.visitCode();</span>
+<span class="nc" id="L36">        }</span>
+    }
+
+    private static class MavenClassVisitor extends ClassVisitor {
+        private final String mavenClassName;
+        private final String mavenInterceptorName;
+
+        public MavenClassVisitor(String className, String interceptorName, ClassVisitor cv) {
+<span class="nc" id="L44">            super(Opcodes.ASM5, cv);</span>
+<span class="nc" id="L45">            this.mavenClassName = className;</span>
+<span class="nc" id="L46">            this.mavenInterceptorName = interceptorName;</span>
+<span class="nc" id="L47">        }</span>
+
+        public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+<span class="nc" id="L50">            MethodVisitor mv = cv.visitMethod(access, name, desc, signature, exceptions);</span>
+<span class="nc bnc" id="L51" title="All 4 branches missed.">            if (name.equals(EXECUTE_MNAME) &amp;&amp; desc.equals(EXECUTE_MDESC)) {</span>
+<span class="nc" id="L52">                mv = new MavenMethodVisitor(mavenInterceptorName, name, desc, mv);</span>
+            }
+<span class="nc" id="L54">            return mv;</span>
+        }
+    }
+
+    public byte[] transform(ClassLoader loader, String className, Class&lt;?&gt; classBeingRedefined,
+                            ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
+<span class="nc bnc" id="L60" title="All 4 branches missed.">        if (className.equals(ABSTRACT_SUREFIRE_MOJO_VM) || className.equals(SUREFIRE_PLUGIN_VM)) {</span>
+<span class="nc" id="L61">            return addInterceptor(className, classfileBuffer, SUREFIRE_INTERCEPTOR_CLASS_VM);</span>
+        } else {
+<span class="nc" id="L63">            return null;</span>
+        }
+    }
+
+    private byte[] addInterceptor(String className, byte[] classfileBuffer, String interceptorName) {
+<span class="nc" id="L68">        ClassReader classReader = new ClassReader(classfileBuffer);</span>
+<span class="nc" id="L69">        ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS);</span>
+<span class="nc" id="L70">        ClassVisitor visitor = new MavenClassVisitor(className, interceptorName, classWriter);</span>
+<span class="nc" id="L71">        classReader.accept(visitor, 0);</span>
+<span class="nc" id="L72">        return classWriter.toByteArray();</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

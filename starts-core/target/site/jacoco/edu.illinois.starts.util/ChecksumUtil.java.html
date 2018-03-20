@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChecksumUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.util</a> &gt; <span class="el_source">ChecksumUtil.java</span></div><h1>ChecksumUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.util;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.illinois.starts.constants.StartsConstants;
+import org.ekstazi.data.RegData;
+import org.ekstazi.data.TxtStorer;
+import org.ekstazi.hash.Hasher;
+import org.ekstazi.util.Types;
+
+public class ChecksumUtil implements StartsConstants {
+<span class="nc" id="L28">    public static final String JAVAHOME = System.getProperty(JAVA_HOME);</span>
+<span class="nc" id="L29">    private static final Logger LOGGER = Logger.getLogger(ChecksumUtil.class.getName());</span>
+
+    Hasher hasher;
+    private Map&lt;URL, String&gt; checkSumMap; // map from URL to checksums, to reduce hashing
+
+<span class="nc" id="L34">    public ChecksumUtil(boolean cleanBytes) {</span>
+<span class="nc" id="L35">        checkSumMap = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L36">        hasher = new Hasher(Hasher.Algorithm.CRC32, 1000, cleanBytes);</span>
+<span class="nc" id="L37">    }</span>
+
+    /**
+     * This method creates the checksum map only for tests that are affected by changes
+     *
+     * @param loader   The classloader from which to find .class files
+     * @param testDeps The transitive closure of dependencies for each test
+     * @param affected The set of tests that are affected by the changes
+     * @return The checksum map
+     */
+    public static Map&lt;String, Set&lt;RegData&gt;&gt; makeCheckSumMap(ClassLoader loader, Map&lt;String,
+            Set&lt;String&gt;&gt; testDeps, Set&lt;String&gt; affected) {
+<span class="nc" id="L49">        Map&lt;String, Set&lt;RegData&gt;&gt; checksums = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L50">        ChecksumUtil checksumUtil = new ChecksumUtil(true);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        for (String test : affected) {</span>
+<span class="nc" id="L52">            checksums.put(test, new HashSet&lt;RegData&gt;());</span>
+<span class="nc" id="L53">            URL url = loader.getResource(toClassName(test));</span>
+<span class="nc" id="L54">            checksums.get(test).add(checksumUtil.computeChecksumRegData(url));</span>
+<span class="nc" id="L55">            long start = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">            for (String dep : testDeps.get(test)) {</span>
+<span class="nc" id="L57">                String className = toClassName(dep);</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                if (!Types.isIgnorableInternalName(className)) {</span>
+<span class="nc" id="L59">                    url = loader.getResource(className);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                    if (url != null) {</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                        if (!isWellKnownUrl(url.toExternalForm())) {</span>
+<span class="nc" id="L62">                            checksums.get(test).add(checksumUtil.computeChecksumRegData(url));</span>
+                        }
+                    } else {
+                        // Known benign cases where this can happen: (i) dep is from a shaded jar which is itself on
+                        // the classpath; (ii) dep is from an optional jar dependency of a direct jar dependency (e.g.,
+                        // users of joda-time-*.jar do not necessarily depend on classes from joda-convert-8.jar
+<span class="nc" id="L68">                        LOGGER.log(Level.FINEST, &quot;@@LoadedNullURLForDep: &quot; + dep);</span>
+                    }
+                }
+<span class="nc" id="L71">            }</span>
+<span class="nc" id="L72">            long end = System.currentTimeMillis();</span>
+<span class="nc" id="L73">            LOGGER.log(Level.FINEST, &quot;LOADED RESOURCES: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L74">        }</span>
+<span class="nc" id="L75">        return checksums;</span>
+    }
+
+    /**
+     * Check for so-called &quot;well-known&quot; classes that we don't track for RTS purposes.
+     * Copied from Ekstazi.
+     *
+     * @param klas The class we want to check
+     * @return true if klas is a well-known class
+     */
+    public static boolean isWellKnownUrl(String klas) {
+<span class="nc bnc" id="L86" title="All 6 branches missed.">        return klas.contains(&quot;!/org/junit&quot;) || klas.contains(&quot;!/junit&quot;) || klas.contains(&quot;!/org/hamcrest&quot;)</span>
+<span class="nc bnc" id="L87" title="All 4 branches missed.">                || klas.contains(&quot;!/org/apache/maven&quot;) || klas.contains(JAVAHOME);</span>
+    }
+
+    public static String toClassName(String fqn) {
+<span class="nc" id="L91">        return fqn.replace(DOT, File.separator) + CLASS_EXTENSION;</span>
+    }
+
+    public static void saveCheckSums(Map&lt;String, Set&lt;RegData&gt;&gt; newCheckSums, String artifactsDir) {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        for (String test : newCheckSums.keySet()) {</span>
+<span class="nc" id="L96">            String checksumPath = makeCheckSumPath(test, artifactsDir);</span>
+<span class="nc" id="L97">            writeChecksumFile(checksumPath, newCheckSums.get(test));</span>
+<span class="nc" id="L98">        }</span>
+<span class="nc" id="L99">    }</span>
+
+    public static String makeCheckSumPath(String test, String artifactsDir) {
+<span class="nc" id="L102">        return artifactsDir + test + &quot;.clz&quot;;</span>
+    }
+
+    public static void writeChecksumFile(String filePath, Set&lt;RegData&gt; data) {
+<span class="nc" id="L106">        StartsStorer storer = new StartsStorer(true);</span>
+        try {
+<span class="nc" id="L108">            File file = new File(filePath);</span>
+<span class="nc" id="L109">            file.createNewFile();</span>
+<span class="nc" id="L110">            FileOutputStream fos = new FileOutputStream(file, false);</span>
+<span class="nc" id="L111">            storer.save(fos, data);</span>
+<span class="nc" id="L112">        } catch (FileNotFoundException fnfe) {</span>
+<span class="nc" id="L113">            fnfe.printStackTrace();</span>
+<span class="nc" id="L114">        } catch (IOException ioe) {</span>
+<span class="nc" id="L115">            ioe.printStackTrace();</span>
+<span class="nc" id="L116">        }</span>
+<span class="nc" id="L117">    }</span>
+
+    public RegData computeChecksumRegData(URL url) {
+<span class="nc" id="L120">        String checksum = getCheckSum(url);</span>
+<span class="nc" id="L121">        return new RegData(url.toExternalForm(), checksum);</span>
+    }
+
+    public String getCheckSum(URL url) {
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (!checkSumMap.containsKey(url)) {</span>
+<span class="nc" id="L126">            String value = computeSingleCheckSum(url);</span>
+<span class="nc" id="L127">            checkSumMap.put(url, value);</span>
+        }
+<span class="nc" id="L129">        return checkSumMap.get(url);</span>
+    }
+
+    public String computeSingleCheckSum(URL url) {
+<span class="nc" id="L133">        return hasher.hashURL(url.toExternalForm());</span>
+    }
+
+    static class StartsStorer extends TxtStorer {
+        public StartsStorer(boolean checkMagicSequence) {
+<span class="nc" id="L138">            super(checkMagicSequence);</span>
+<span class="nc" id="L139">        }</span>
+
+        public void save(FileOutputStream fos, Set&lt;RegData&gt; data) {
+<span class="nc" id="L142">            SortedSet&lt;RegData&gt; sortedData = new TreeSet&lt;&gt;(new RegData.RegComparator());</span>
+<span class="nc" id="L143">            sortedData.addAll(data);</span>
+<span class="nc" id="L144">            super.extendedSave(fos, sortedData);</span>
+<span class="nc" id="L145">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

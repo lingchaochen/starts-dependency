@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.asm</a> &gt; <span class="el_source">FieldWriter.java</span></div><h1>FieldWriter.java</h1><pre class="source lang-java linenums">/***
+ * ASM: a very small and fast Java bytecode manipulation framework
+ * Copyright (c) 2000-2011 INRIA, France Telecom
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holders nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.illinois.starts.asm;
+
+
+/**
+ * An {@link FieldVisitor} that generates Java fields in bytecode form.
+ *
+ * @author Eric Bruneton
+ */
+final class FieldWriter extends FieldVisitor {
+
+    /**
+     * The class writer to which this field must be added.
+     */
+    private final ClassWriter cw;
+
+    /**
+     * Access flags of this field.
+     */
+    private final int access;
+
+    /**
+     * The index of the constant pool item that contains the name of this
+     * method.
+     */
+    private final int name;
+
+    /**
+     * The index of the constant pool item that contains the descriptor of this
+     * field.
+     */
+    private final int desc;
+
+    /**
+     * The index of the constant pool item that contains the signature of this
+     * field.
+     */
+    private int signature;
+
+    /**
+     * The index of the constant pool item that contains the constant value of
+     * this field.
+     */
+    private int value;
+
+    /**
+     * The runtime visible annotations of this field. May be &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    private AnnotationWriter anns;
+
+    /**
+     * The runtime invisible annotations of this field. May be &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    private AnnotationWriter ianns;
+
+    /**
+     * The runtime visible type annotations of this field. May be &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    private AnnotationWriter tanns;
+
+    /**
+     * The runtime invisible type annotations of this field. May be
+     * &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    private AnnotationWriter itanns;
+
+    /**
+     * The non standard attributes of this field. May be &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    private Attribute attrs;
+
+    // ------------------------------------------------------------------------
+    // Constructor
+    // ------------------------------------------------------------------------
+
+    /**
+     * Constructs a new {@link FieldWriter}.
+     *
+     * @param cw
+     *            the class writer to which this field must be added.
+     * @param access
+     *            the field's access flags (see {@link Opcodes}).
+     * @param name
+     *            the field's name.
+     * @param desc
+     *            the field's descriptor (see {@link Type}).
+     * @param signature
+     *            the field's signature. May be &lt;tt&gt;null&lt;/tt&gt;.
+     * @param value
+     *            the field's constant value. May be &lt;tt&gt;null&lt;/tt&gt;.
+     */
+    FieldWriter(final ClassWriter cw, final int access, final String name,
+                final String desc, final String signature, final Object value) {
+<span class="nc" id="L122">        super(Opcodes.ASM5);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (cw.firstField == null) {</span>
+<span class="nc" id="L124">            cw.firstField = this;</span>
+        } else {
+<span class="nc" id="L126">            cw.lastField.fv = this;</span>
+        }
+<span class="nc" id="L128">        cw.lastField = this;</span>
+<span class="nc" id="L129">        this.cw = cw;</span>
+<span class="nc" id="L130">        this.access = access;</span>
+<span class="nc" id="L131">        this.name = cw.newUTF8(name);</span>
+<span class="nc" id="L132">        this.desc = cw.newUTF8(desc);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != null) {</span>
+<span class="nc" id="L134">            this.signature = cw.newUTF8(signature);</span>
+        }
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (value != null) {</span>
+<span class="nc" id="L137">            this.value = cw.newConstItem(value).index;</span>
+        }
+<span class="nc" id="L139">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Implementation of the FieldVisitor abstract class
+    // ------------------------------------------------------------------------
+
+    @Override
+    public AnnotationVisitor visitAnnotation(final String desc,
+                                             final boolean visible) {
+        if (!ClassReader.ANNOTATIONS) {
+            return null;
+        }
+<span class="nc" id="L151">        ByteVector bv = new ByteVector();</span>
+        // write type, and reserve space for values count
+<span class="nc" id="L153">        bv.putShort(cw.newUTF8(desc)).putShort(0);</span>
+<span class="nc" id="L154">        AnnotationWriter aw = new AnnotationWriter(cw, true, bv, bv, 2);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L156">            aw.next = anns;</span>
+<span class="nc" id="L157">            anns = aw;</span>
+        } else {
+<span class="nc" id="L159">            aw.next = ianns;</span>
+<span class="nc" id="L160">            ianns = aw;</span>
+        }
+<span class="nc" id="L162">        return aw;</span>
+    }
+
+    @Override
+    public AnnotationVisitor visitTypeAnnotation(final int typeRef,
+                                                 final TypePath typePath, final String desc, final boolean visible) {
+        if (!ClassReader.ANNOTATIONS) {
+            return null;
+        }
+<span class="nc" id="L171">        ByteVector bv = new ByteVector();</span>
+        // write target_type and target_info
+<span class="nc" id="L173">        AnnotationWriter.putTarget(typeRef, typePath, bv);</span>
+        // write type, and reserve space for values count
+<span class="nc" id="L175">        bv.putShort(cw.newUTF8(desc)).putShort(0);</span>
+<span class="nc" id="L176">        AnnotationWriter aw = new AnnotationWriter(cw, true, bv, bv,</span>
+                bv.length - 2);
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L179">            aw.next = tanns;</span>
+<span class="nc" id="L180">            tanns = aw;</span>
+        } else {
+<span class="nc" id="L182">            aw.next = itanns;</span>
+<span class="nc" id="L183">            itanns = aw;</span>
+        }
+<span class="nc" id="L185">        return aw;</span>
+    }
+
+    @Override
+    public void visitAttribute(final Attribute attr) {
+<span class="nc" id="L190">        attr.next = attrs;</span>
+<span class="nc" id="L191">        attrs = attr;</span>
+<span class="nc" id="L192">    }</span>
+
+    @Override
+    public void visitEnd() {
+<span class="nc" id="L196">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Utility methods
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the size of this field.
+     *
+     * @return the size of this field.
+     */
+    int getSize() {
+<span class="nc" id="L208">        int size = 8;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (value != 0) {</span>
+<span class="nc" id="L210">            cw.newUTF8(&quot;ConstantValue&quot;);</span>
+<span class="nc" id="L211">            size += 8;</span>
+        }
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_SYNTHETIC) != 0) {</span>
+<span class="nc bnc" id="L214" title="All 4 branches missed.">            if ((cw.version &amp; 0xFFFF) &lt; Opcodes.V1_5</span>
+                    || (access &amp; ClassWriter.ACC_SYNTHETIC_ATTRIBUTE) != 0) {
+<span class="nc" id="L216">                cw.newUTF8(&quot;Synthetic&quot;);</span>
+<span class="nc" id="L217">                size += 6;</span>
+            }
+        }
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_DEPRECATED) != 0) {</span>
+<span class="nc" id="L221">            cw.newUTF8(&quot;Deprecated&quot;);</span>
+<span class="nc" id="L222">            size += 6;</span>
+        }
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != 0) {</span>
+<span class="nc" id="L225">            cw.newUTF8(&quot;Signature&quot;);</span>
+<span class="nc" id="L226">            size += 8;</span>
+        }
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; anns != null) {</span>
+<span class="nc" id="L229">            cw.newUTF8(&quot;RuntimeVisibleAnnotations&quot;);</span>
+<span class="nc" id="L230">            size += 8 + anns.getSize();</span>
+        }
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; ianns != null) {</span>
+<span class="nc" id="L233">            cw.newUTF8(&quot;RuntimeInvisibleAnnotations&quot;);</span>
+<span class="nc" id="L234">            size += 8 + ianns.getSize();</span>
+        }
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; tanns != null) {</span>
+<span class="nc" id="L237">            cw.newUTF8(&quot;RuntimeVisibleTypeAnnotations&quot;);</span>
+<span class="nc" id="L238">            size += 8 + tanns.getSize();</span>
+        }
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; itanns != null) {</span>
+<span class="nc" id="L241">            cw.newUTF8(&quot;RuntimeInvisibleTypeAnnotations&quot;);</span>
+<span class="nc" id="L242">            size += 8 + itanns.getSize();</span>
+        }
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        if (attrs != null) {</span>
+<span class="nc" id="L245">            size += attrs.getSize(cw, null, 0, -1, -1);</span>
+        }
+<span class="nc" id="L247">        return size;</span>
+    }
+
+    /**
+     * Puts the content of this field into the given byte vector.
+     *
+     * @param out
+     *            where the content of this field must be put.
+     */
+    void put(final ByteVector out) {
+<span class="nc" id="L257">        final int FACTOR = ClassWriter.TO_ACC_SYNTHETIC;</span>
+<span class="nc" id="L258">        int mask = Opcodes.ACC_DEPRECATED | ClassWriter.ACC_SYNTHETIC_ATTRIBUTE</span>
+                | ((access &amp; ClassWriter.ACC_SYNTHETIC_ATTRIBUTE) / FACTOR);
+<span class="nc" id="L260">        out.putShort(access &amp; ~mask).putShort(name).putShort(desc);</span>
+<span class="nc" id="L261">        int attributeCount = 0;</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">        if (value != 0) {</span>
+<span class="nc" id="L263">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L265" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_SYNTHETIC) != 0) {</span>
+<span class="nc bnc" id="L266" title="All 4 branches missed.">            if ((cw.version &amp; 0xFFFF) &lt; Opcodes.V1_5</span>
+                    || (access &amp; ClassWriter.ACC_SYNTHETIC_ATTRIBUTE) != 0) {
+<span class="nc" id="L268">                ++attributeCount;</span>
+            }
+        }
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_DEPRECATED) != 0) {</span>
+<span class="nc" id="L272">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != 0) {</span>
+<span class="nc" id="L275">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; anns != null) {</span>
+<span class="nc" id="L278">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; ianns != null) {</span>
+<span class="nc" id="L281">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; tanns != null) {</span>
+<span class="nc" id="L284">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; itanns != null) {</span>
+<span class="nc" id="L287">            ++attributeCount;</span>
+        }
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        if (attrs != null) {</span>
+<span class="nc" id="L290">            attributeCount += attrs.getCount();</span>
+        }
+<span class="nc" id="L292">        out.putShort(attributeCount);</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if (value != 0) {</span>
+<span class="nc" id="L294">            out.putShort(cw.newUTF8(&quot;ConstantValue&quot;));</span>
+<span class="nc" id="L295">            out.putInt(2).putShort(value);</span>
+        }
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_SYNTHETIC) != 0) {</span>
+<span class="nc bnc" id="L298" title="All 4 branches missed.">            if ((cw.version &amp; 0xFFFF) &lt; Opcodes.V1_5</span>
+                    || (access &amp; ClassWriter.ACC_SYNTHETIC_ATTRIBUTE) != 0) {
+<span class="nc" id="L300">                out.putShort(cw.newUTF8(&quot;Synthetic&quot;)).putInt(0);</span>
+            }
+        }
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_DEPRECATED) != 0) {</span>
+<span class="nc" id="L304">            out.putShort(cw.newUTF8(&quot;Deprecated&quot;)).putInt(0);</span>
+        }
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != 0) {</span>
+<span class="nc" id="L307">            out.putShort(cw.newUTF8(&quot;Signature&quot;));</span>
+<span class="nc" id="L308">            out.putInt(2).putShort(signature);</span>
+        }
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; anns != null) {</span>
+<span class="nc" id="L311">            out.putShort(cw.newUTF8(&quot;RuntimeVisibleAnnotations&quot;));</span>
+<span class="nc" id="L312">            anns.put(out);</span>
+        }
+<span class="nc bnc" id="L314" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; ianns != null) {</span>
+<span class="nc" id="L315">            out.putShort(cw.newUTF8(&quot;RuntimeInvisibleAnnotations&quot;));</span>
+<span class="nc" id="L316">            ianns.put(out);</span>
+        }
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; tanns != null) {</span>
+<span class="nc" id="L319">            out.putShort(cw.newUTF8(&quot;RuntimeVisibleTypeAnnotations&quot;));</span>
+<span class="nc" id="L320">            tanns.put(out);</span>
+        }
+<span class="nc bnc" id="L322" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; itanns != null) {</span>
+<span class="nc" id="L323">            out.putShort(cw.newUTF8(&quot;RuntimeInvisibleTypeAnnotations&quot;));</span>
+<span class="nc" id="L324">            itanns.put(out);</span>
+        }
+<span class="nc bnc" id="L326" title="All 2 branches missed.">        if (attrs != null) {</span>
+<span class="nc" id="L327">            attrs.put(cw, null, 0, -1, -1, out);</span>
+        }
+<span class="nc" id="L329">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

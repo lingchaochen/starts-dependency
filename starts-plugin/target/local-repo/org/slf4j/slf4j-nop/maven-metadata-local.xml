@@ -1,0 +1,10 @@
+<metadata>
+  <groupId>org.slf4j</groupId>
+  <artifactId>slf4j-nop</artifactId>
+  <versioning>
+    <versions>
+      <version>1.5.3</version>
+    </versions>
+    <lastUpdated>20180320162438</lastUpdated>
+  </versioning>
+</metadata>

@@ -1,0 +1,2498 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.asm</a> &gt; <span class="el_source">ClassReader.java</span></div><h1>ClassReader.java</h1><pre class="source lang-java linenums">/***
+ * ASM: a very small and fast Java bytecode manipulation framework
+ * Copyright (c) 2000-2011 INRIA, France Telecom
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holders nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.illinois.starts.asm;
+
+
+import java.io.IOException;
+import java.io.InputStream;
+
+/**
+ * A Java class parser to make a {@link ClassVisitor} visit an existing class.
+ * This class parses a byte array conforming to the Java class file format and
+ * calls the appropriate visit methods of a given class visitor for each field,
+ * method and bytecode instruction encountered.
+ *
+ * @author Eric Bruneton
+ * @author Eugene Kuleshov
+ */
+public class ClassReader {
+
+    /**
+     * True to enable signatures support.
+     */
+    static final boolean SIGNATURES = true;
+
+    /**
+     * True to enable annotations support.
+     */
+    static final boolean ANNOTATIONS = true;
+
+    /**
+     * True to enable stack map frames support.
+     */
+    static final boolean FRAMES = true;
+
+    /**
+     * True to enable bytecode writing support.
+     */
+    static final boolean WRITER = true;
+
+    /**
+     * True to enable JSR_W and GOTO_W support.
+     */
+    static final boolean RESIZE = true;
+
+    /**
+     * Flag to skip method code. If this class is set &lt;code&gt;CODE&lt;/code&gt;
+     * attribute won't be visited. This can be used, for example, to retrieve
+     * annotations for methods and method parameters.
+     */
+    public static final int SKIP_CODE = 1;
+
+    /**
+     * Flag to skip the debug information in the class. If this flag is set the
+     * debug information of the class is not visited, i.e. the
+     * {@link MethodVisitor#visitLocalVariable visitLocalVariable} and
+     * {@link MethodVisitor#visitLineNumber visitLineNumber} methods will not be
+     * called.
+     */
+    public static final int SKIP_DEBUG = 2;
+
+    /**
+     * Flag to skip the stack map frames in the class. If this flag is set the
+     * stack map frames of the class is not visited, i.e. the
+     * {@link MethodVisitor#visitFrame visitFrame} method will not be called.
+     * This flag is useful when the {@link ClassWriter#COMPUTE_FRAMES} option is
+     * used: it avoids visiting frames that will be ignored and recomputed from
+     * scratch in the class writer.
+     */
+    public static final int SKIP_FRAMES = 4;
+
+    /**
+     * Flag to expand the stack map frames. By default stack map frames are
+     * visited in their original format (i.e. &quot;expanded&quot; for classes whose
+     * version is less than V1_6, and &quot;compressed&quot; for the other classes). If
+     * this flag is set, stack map frames are always visited in expanded format
+     * (this option adds a decompression/recompression step in ClassReader and
+     * ClassWriter which degrades performances quite a lot).
+     */
+    public static final int EXPAND_FRAMES = 8;
+
+    /**
+     * The class to be parsed. &lt;i&gt;The content of this array must not be
+     * modified. This field is intended for {@link Attribute} sub classes, and
+     * is normally not needed by class generators or adapters.&lt;/i&gt;
+     */
+    public final byte[] b;
+
+    /**
+     * The start index of each constant pool item in {@link #b b}, plus one. The
+     * one byte offset skips the constant pool item tag that indicates its type.
+     */
+    private final int[] items;
+
+    /**
+     * The String objects corresponding to the CONSTANT_Utf8 items. This cache
+     * avoids multiple parsing of a given CONSTANT_Utf8 constant pool item,
+     * which GREATLY improves performances (by a factor 2 to 3). This caching
+     * strategy could be extended to all constant pool items, but its benefit
+     * would not be so great for these items (because they are much less
+     * expensive to parse than CONSTANT_Utf8 items).
+     */
+    private final String[] strings;
+
+    /**
+     * Maximum length of the strings contained in the constant pool of the
+     * class.
+     */
+    private final int maxStringLength;
+
+    /**
+     * Start index of the class header information (access, name...) in
+     * {@link #b b}.
+     */
+    public final int header;
+
+    // ------------------------------------------------------------------------
+    // Constructors
+    // ------------------------------------------------------------------------
+
+    /**
+     * Constructs a new {@link ClassReader} object.
+     *
+     * @param b
+     *            the bytecode of the class to be read.
+     */
+    public ClassReader(final byte[] b) {
+<span class="nc" id="L154">        this(b, 0, b.length);</span>
+<span class="nc" id="L155">    }</span>
+
+    /**
+     * Constructs a new {@link ClassReader} object.
+     *
+     * @param b
+     *            the bytecode of the class to be read.
+     * @param off
+     *            the start offset of the class data.
+     * @param len
+     *            the length of the class data.
+     */
+<span class="nc" id="L167">    public ClassReader(final byte[] b, final int off, final int len) {</span>
+<span class="nc" id="L168">        this.b = b;</span>
+        // checks the class version
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (readShort(off + 6) &gt; Opcodes.V1_8) {</span>
+<span class="nc" id="L171">            throw new IllegalArgumentException();</span>
+        }
+        // parses the constant pool
+<span class="nc" id="L174">        items = new int[readUnsignedShort(off + 8)];</span>
+<span class="nc" id="L175">        int n = items.length;</span>
+<span class="nc" id="L176">        strings = new String[n];</span>
+<span class="nc" id="L177">        int max = 0;</span>
+<span class="nc" id="L178">        int index = off + 10;</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        for (int i = 1; i &lt; n; ++i) {</span>
+<span class="nc" id="L180">            items[i] = index + 1;</span>
+            int size;
+<span class="nc bnc" id="L182" title="All 5 branches missed.">            switch (b[index]) {</span>
+            case ClassWriter.FIELD:
+            case ClassWriter.METH:
+            case ClassWriter.IMETH:
+            case ClassWriter.INT:
+            case ClassWriter.FLOAT:
+            case ClassWriter.NAME_TYPE:
+            case ClassWriter.INDY:
+<span class="nc" id="L190">                size = 5;</span>
+<span class="nc" id="L191">                break;</span>
+            case ClassWriter.LONG:
+            case ClassWriter.DOUBLE:
+<span class="nc" id="L194">                size = 9;</span>
+<span class="nc" id="L195">                ++i;</span>
+<span class="nc" id="L196">                break;</span>
+            case ClassWriter.UTF8:
+<span class="nc" id="L198">                size = 3 + readUnsignedShort(index + 1);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                if (size &gt; max) {</span>
+<span class="nc" id="L200">                    max = size;</span>
+                }
+                break;
+            case ClassWriter.HANDLE:
+<span class="nc" id="L204">                size = 4;</span>
+<span class="nc" id="L205">                break;</span>
+            // case ClassWriter.CLASS:
+            // case ClassWriter.STR:
+            // case ClassWriter.MTYPE
+            default:
+<span class="nc" id="L210">                size = 3;</span>
+                break;
+            }
+<span class="nc" id="L213">            index += size;</span>
+        }
+<span class="nc" id="L215">        maxStringLength = max;</span>
+        // the class header information starts just after the constant pool
+<span class="nc" id="L217">        header = index;</span>
+<span class="nc" id="L218">    }</span>
+
+    /**
+     * Returns the class's access flags (see {@link Opcodes}). This value may
+     * not reflect Deprecated and Synthetic flags when bytecode is before 1.5
+     * and those flags are represented by attributes.
+     *
+     * @return the class access flags
+     *
+     * @see ClassVisitor#visit(int, int, String, String, String, String[])
+     */
+    public int getAccess() {
+<span class="nc" id="L230">        return readUnsignedShort(header);</span>
+    }
+
+    /**
+     * Returns the internal name of the class (see
+     * {@link Type#getInternalName() getInternalName}).
+     *
+     * @return the internal class name
+     *
+     * @see ClassVisitor#visit(int, int, String, String, String, String[])
+     */
+    public String getClassName() {
+<span class="nc" id="L242">        return readClass(header + 2, new char[maxStringLength]);</span>
+    }
+
+    /**
+     * Returns the internal of name of the super class (see
+     * {@link Type#getInternalName() getInternalName}). For interfaces, the
+     * super class is {@link Object}.
+     *
+     * @return the internal name of super class, or &lt;tt&gt;null&lt;/tt&gt; for
+     *         {@link Object} class.
+     *
+     * @see ClassVisitor#visit(int, int, String, String, String, String[])
+     */
+    public String getSuperName() {
+<span class="nc" id="L256">        return readClass(header + 4, new char[maxStringLength]);</span>
+    }
+
+    /**
+     * Returns the internal names of the class's interfaces (see
+     * {@link Type#getInternalName() getInternalName}).
+     *
+     * @return the array of internal names for all implemented interfaces or
+     *         &lt;tt&gt;null&lt;/tt&gt;.
+     *
+     * @see ClassVisitor#visit(int, int, String, String, String, String[])
+     */
+    public String[] getInterfaces() {
+<span class="nc" id="L269">        int index = header + 6;</span>
+<span class="nc" id="L270">        int n = readUnsignedShort(index);</span>
+<span class="nc" id="L271">        String[] interfaces = new String[n];</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        if (n &gt; 0) {</span>
+<span class="nc" id="L273">            char[] buf = new char[maxStringLength];</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">            for (int i = 0; i &lt; n; ++i) {</span>
+<span class="nc" id="L275">                index += 2;</span>
+<span class="nc" id="L276">                interfaces[i] = readClass(index, buf);</span>
+            }
+        }
+<span class="nc" id="L279">        return interfaces;</span>
+    }
+
+    /**
+     * Copies the constant pool data into the given {@link ClassWriter}. Should
+     * be called before the {@link #accept(ClassVisitor,int)} method.
+     *
+     * @param classWriter
+     *            the {@link ClassWriter} to copy constant pool into.
+     */
+    void copyPool(final ClassWriter classWriter) {
+<span class="nc" id="L290">        char[] buf = new char[maxStringLength];</span>
+<span class="nc" id="L291">        int ll = items.length;</span>
+<span class="nc" id="L292">        Item[] items2 = new Item[ll];</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        for (int i = 1; i &lt; ll; i++) {</span>
+<span class="nc" id="L294">            int index = items[i];</span>
+<span class="nc" id="L295">            int tag = b[index - 1];</span>
+<span class="nc" id="L296">            Item item = new Item(i);</span>
+            int nameType;
+<span class="nc bnc" id="L298" title="All 10 branches missed.">            switch (tag) {</span>
+            case ClassWriter.FIELD:
+            case ClassWriter.METH:
+            case ClassWriter.IMETH:
+<span class="nc" id="L302">                nameType = items[readUnsignedShort(index + 2)];</span>
+<span class="nc" id="L303">                item.set(tag, readClass(index, buf), readUTF8(nameType, buf),</span>
+<span class="nc" id="L304">                        readUTF8(nameType + 2, buf));</span>
+<span class="nc" id="L305">                break;</span>
+            case ClassWriter.INT:
+<span class="nc" id="L307">                item.set(readInt(index));</span>
+<span class="nc" id="L308">                break;</span>
+            case ClassWriter.FLOAT:
+<span class="nc" id="L310">                item.set(Float.intBitsToFloat(readInt(index)));</span>
+<span class="nc" id="L311">                break;</span>
+            case ClassWriter.NAME_TYPE:
+<span class="nc" id="L313">                item.set(tag, readUTF8(index, buf), readUTF8(index + 2, buf),</span>
+                        null);
+<span class="nc" id="L315">                break;</span>
+            case ClassWriter.LONG:
+<span class="nc" id="L317">                item.set(readLong(index));</span>
+<span class="nc" id="L318">                ++i;</span>
+<span class="nc" id="L319">                break;</span>
+            case ClassWriter.DOUBLE:
+<span class="nc" id="L321">                item.set(Double.longBitsToDouble(readLong(index)));</span>
+<span class="nc" id="L322">                ++i;</span>
+<span class="nc" id="L323">                break;</span>
+            case ClassWriter.UTF8: {
+<span class="nc" id="L325">                String s = strings[i];</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                if (s == null) {</span>
+<span class="nc" id="L327">                    index = items[i];</span>
+<span class="nc" id="L328">                    s = strings[i] = readUTF(index + 2,</span>
+<span class="nc" id="L329">                            readUnsignedShort(index), buf);</span>
+                }
+<span class="nc" id="L331">                item.set(tag, s, null, null);</span>
+<span class="nc" id="L332">                break;</span>
+            }
+            case ClassWriter.HANDLE: {
+<span class="nc" id="L335">                int fieldOrMethodRef = items[readUnsignedShort(index + 1)];</span>
+<span class="nc" id="L336">                nameType = items[readUnsignedShort(fieldOrMethodRef + 2)];</span>
+<span class="nc" id="L337">                item.set(ClassWriter.HANDLE_BASE + readByte(index),</span>
+<span class="nc" id="L338">                        readClass(fieldOrMethodRef, buf),</span>
+<span class="nc" id="L339">                        readUTF8(nameType, buf), readUTF8(nameType + 2, buf));</span>
+<span class="nc" id="L340">                break;</span>
+            }
+            case ClassWriter.INDY:
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                if (classWriter.bootstrapMethods == null) {</span>
+<span class="nc" id="L344">                    copyBootstrapMethods(classWriter, items2, buf);</span>
+                }
+<span class="nc" id="L346">                nameType = items[readUnsignedShort(index + 2)];</span>
+<span class="nc" id="L347">                item.set(readUTF8(nameType, buf), readUTF8(nameType + 2, buf),</span>
+<span class="nc" id="L348">                        readUnsignedShort(index));</span>
+<span class="nc" id="L349">                break;</span>
+            // case ClassWriter.STR:
+            // case ClassWriter.CLASS:
+            // case ClassWriter.MTYPE
+            default:
+<span class="nc" id="L354">                item.set(tag, readUTF8(index, buf), null, null);</span>
+                break;
+            }
+
+<span class="nc" id="L358">            int index2 = item.hashCode % items2.length;</span>
+<span class="nc" id="L359">            item.next = items2[index2];</span>
+<span class="nc" id="L360">            items2[index2] = item;</span>
+        }
+
+<span class="nc" id="L363">        int off = items[1] - 1;</span>
+<span class="nc" id="L364">        classWriter.pool.putByteArray(b, off, header - off);</span>
+<span class="nc" id="L365">        classWriter.items = items2;</span>
+<span class="nc" id="L366">        classWriter.threshold = (int) (0.75d * ll);</span>
+<span class="nc" id="L367">        classWriter.index = ll;</span>
+<span class="nc" id="L368">    }</span>
+
+    /**
+     * Copies the bootstrap method data into the given {@link ClassWriter}.
+     * Should be called before the {@link #accept(ClassVisitor,int)} method.
+     *
+     * @param classWriter
+     *            the {@link ClassWriter} to copy bootstrap methods into.
+     */
+    private void copyBootstrapMethods(final ClassWriter classWriter,
+                                      final Item[] items, final char[] c) {
+        // finds the &quot;BootstrapMethods&quot; attribute
+<span class="nc" id="L380">        int u = getAttributes();</span>
+<span class="nc" id="L381">        boolean found = false;</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L383">            String attrName = readUTF8(u + 2, c);</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">            if (&quot;BootstrapMethods&quot;.equals(attrName)) {</span>
+<span class="nc" id="L385">                found = true;</span>
+<span class="nc" id="L386">                break;</span>
+            }
+<span class="nc" id="L388">            u += 6 + readInt(u + 4);</span>
+        }
+<span class="nc bnc" id="L390" title="All 2 branches missed.">        if (!found) {</span>
+<span class="nc" id="L391">            return;</span>
+        }
+        // copies the bootstrap methods in the class writer
+<span class="nc" id="L394">        int boostrapMethodCount = readUnsignedShort(u + 8);</span>
+<span class="nc bnc" id="L395" title="All 2 branches missed.">        for (int j = 0, v = u + 10; j &lt; boostrapMethodCount; j++) {</span>
+<span class="nc" id="L396">            int position = v - u - 10;</span>
+<span class="nc" id="L397">            int hashCode = readConst(readUnsignedShort(v), c).hashCode();</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">            for (int k = readUnsignedShort(v + 2); k &gt; 0; --k) {</span>
+<span class="nc" id="L399">                hashCode ^= readConst(readUnsignedShort(v + 4), c).hashCode();</span>
+<span class="nc" id="L400">                v += 2;</span>
+            }
+<span class="nc" id="L402">            v += 4;</span>
+<span class="nc" id="L403">            Item item = new Item(j);</span>
+<span class="nc" id="L404">            item.set(position, hashCode &amp; 0x7FFFFFFF);</span>
+<span class="nc" id="L405">            int index = item.hashCode % items.length;</span>
+<span class="nc" id="L406">            item.next = items[index];</span>
+<span class="nc" id="L407">            items[index] = item;</span>
+        }
+<span class="nc" id="L409">        int attrSize = readInt(u + 4);</span>
+<span class="nc" id="L410">        ByteVector bootstrapMethods = new ByteVector(attrSize + 62);</span>
+<span class="nc" id="L411">        bootstrapMethods.putByteArray(b, u + 10, attrSize - 2);</span>
+<span class="nc" id="L412">        classWriter.bootstrapMethodsCount = boostrapMethodCount;</span>
+<span class="nc" id="L413">        classWriter.bootstrapMethods = bootstrapMethods;</span>
+<span class="nc" id="L414">    }</span>
+
+    /**
+     * Constructs a new {@link ClassReader} object.
+     *
+     * @param is
+     *            an input stream from which to read the class.
+     * @throws IOException
+     *             if a problem occurs during reading.
+     */
+    public ClassReader(final InputStream is) throws IOException {
+<span class="nc" id="L425">        this(readClass(is, false));</span>
+<span class="nc" id="L426">    }</span>
+
+    /**
+     * Constructs a new {@link ClassReader} object.
+     *
+     * @param name
+     *            the binary qualified name of the class to be read.
+     * @throws IOException
+     *             if an exception occurs during reading.
+     */
+    public ClassReader(final String name) throws IOException {
+<span class="nc" id="L437">        this(readClass(</span>
+<span class="nc" id="L438">                ClassLoader.getSystemResourceAsStream(name.replace('.', '/')</span>
+                        + &quot;.class&quot;), true));
+<span class="nc" id="L440">    }</span>
+
+    /**
+     * Reads the bytecode of a class.
+     *
+     * @param is
+     *            an input stream from which to read the class.
+     * @param close
+     *            true to close the input stream after reading.
+     * @return the bytecode read from the given input stream.
+     * @throws IOException
+     *             if a problem occurs during reading.
+     */
+    private static byte[] readClass(final InputStream is, boolean close)
+            throws IOException {
+<span class="nc bnc" id="L455" title="All 2 branches missed.">        if (is == null) {</span>
+<span class="nc" id="L456">            throw new IOException(&quot;Class not found&quot;);</span>
+        }
+        try {
+<span class="nc" id="L459">            byte[] b = new byte[is.available()];</span>
+<span class="nc" id="L460">            int len = 0;</span>
+            while (true) {
+<span class="nc" id="L462">                int n = is.read(b, len, b.length - len);</span>
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                if (n == -1) {</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">                    if (len &lt; b.length) {</span>
+<span class="nc" id="L465">                        byte[] c = new byte[len];</span>
+<span class="nc" id="L466">                        System.arraycopy(b, 0, c, 0, len);</span>
+<span class="nc" id="L467">                        b = c;</span>
+                    }
+<span class="nc" id="L469">                    return b;</span>
+                }
+<span class="nc" id="L471">                len += n;</span>
+<span class="nc bnc" id="L472" title="All 2 branches missed.">                if (len == b.length) {</span>
+<span class="nc" id="L473">                    int last = is.read();</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">                    if (last &lt; 0) {</span>
+<span class="nc" id="L475">                        return b;</span>
+                    }
+<span class="nc" id="L477">                    byte[] c = new byte[b.length + 1000];</span>
+<span class="nc" id="L478">                    System.arraycopy(b, 0, c, 0, len);</span>
+<span class="nc" id="L479">                    c[len++] = (byte) last;</span>
+<span class="nc" id="L480">                    b = c;</span>
+                }
+<span class="nc" id="L482">            }</span>
+        } finally {
+<span class="nc bnc" id="L484" title="All 6 branches missed.">            if (close) {</span>
+<span class="nc" id="L485">                is.close();</span>
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Public methods
+    // ------------------------------------------------------------------------
+
+    /**
+     * Makes the given visitor visit the Java class of this {@link ClassReader}
+     * . This class is the one specified in the constructor (see
+     * {@link #ClassReader(byte[]) ClassReader}).
+     *
+     * @param classVisitor
+     *            the visitor that must visit this class.
+     * @param flags
+     *            option flags that can be used to modify the default behavior
+     *            of this class. See {@link #SKIP_DEBUG}, {@link #EXPAND_FRAMES}
+     *            , {@link #SKIP_FRAMES}, {@link #SKIP_CODE}.
+     */
+    public void accept(final ClassVisitor classVisitor, final int flags) {
+<span class="nc" id="L507">        accept(classVisitor, new Attribute[0], flags);</span>
+<span class="nc" id="L508">    }</span>
+
+    /**
+     * Makes the given visitor visit the Java class of this {@link ClassReader}.
+     * This class is the one specified in the constructor (see
+     * {@link #ClassReader(byte[]) ClassReader}).
+     *
+     * @param classVisitor
+     *            the visitor that must visit this class.
+     * @param attrs
+     *            prototypes of the attributes that must be parsed during the
+     *            visit of the class. Any attribute whose type is not equal to
+     *            the type of one the prototypes will not be parsed: its byte
+     *            array value will be passed unchanged to the ClassWriter.
+     *            &lt;i&gt;This may corrupt it if this value contains references to
+     *            the constant pool, or has syntactic or semantic links with a
+     *            class element that has been transformed by a class adapter
+     *            between the reader and the writer&lt;/i&gt;.
+     * @param flags
+     *            option flags that can be used to modify the default behavior
+     *            of this class. See {@link #SKIP_DEBUG}, {@link #EXPAND_FRAMES}
+     *            , {@link #SKIP_FRAMES}, {@link #SKIP_CODE}.
+     */
+    public void accept(final ClassVisitor classVisitor,
+                       final Attribute[] attrs, final int flags) {
+<span class="nc" id="L533">        int u = header; // current offset in the class file</span>
+<span class="nc" id="L534">        char[] c = new char[maxStringLength]; // buffer used to read strings</span>
+
+<span class="nc" id="L536">        Context context = new Context();</span>
+<span class="nc" id="L537">        context.attrs = attrs;</span>
+<span class="nc" id="L538">        context.flags = flags;</span>
+<span class="nc" id="L539">        context.buffer = c;</span>
+
+        // reads the class declaration
+<span class="nc" id="L542">        int access = readUnsignedShort(u);</span>
+<span class="nc" id="L543">        String name = readClass(u + 2, c);</span>
+<span class="nc" id="L544">        String superClass = readClass(u + 4, c);</span>
+<span class="nc" id="L545">        String[] interfaces = new String[readUnsignedShort(u + 6)];</span>
+<span class="nc" id="L546">        u += 8;</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">        for (int i = 0; i &lt; interfaces.length; ++i) {</span>
+<span class="nc" id="L548">            interfaces[i] = readClass(u, c);</span>
+<span class="nc" id="L549">            u += 2;</span>
+        }
+
+        // reads the class attributes
+<span class="nc" id="L553">        String signature = null;</span>
+<span class="nc" id="L554">        String sourceFile = null;</span>
+<span class="nc" id="L555">        String sourceDebug = null;</span>
+<span class="nc" id="L556">        String enclosingOwner = null;</span>
+<span class="nc" id="L557">        String enclosingName = null;</span>
+<span class="nc" id="L558">        String enclosingDesc = null;</span>
+<span class="nc" id="L559">        int anns = 0;</span>
+<span class="nc" id="L560">        int ianns = 0;</span>
+<span class="nc" id="L561">        int tanns = 0;</span>
+<span class="nc" id="L562">        int itanns = 0;</span>
+<span class="nc" id="L563">        int innerClasses = 0;</span>
+<span class="nc" id="L564">        Attribute attributes = null;</span>
+
+<span class="nc" id="L566">        u = getAttributes();</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L568">            String attrName = readUTF8(u + 2, c);</span>
+            // tests are sorted in decreasing frequency order
+            // (based on frequencies observed on typical classes)
+<span class="nc bnc" id="L571" title="All 2 branches missed.">            if (&quot;SourceFile&quot;.equals(attrName)) {</span>
+<span class="nc" id="L572">                sourceFile = readUTF8(u + 8, c);</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">            } else if (&quot;InnerClasses&quot;.equals(attrName)) {</span>
+<span class="nc" id="L574">                innerClasses = u + 8;</span>
+<span class="nc bnc" id="L575" title="All 2 branches missed.">            } else if (&quot;EnclosingMethod&quot;.equals(attrName)) {</span>
+<span class="nc" id="L576">                enclosingOwner = readClass(u + 8, c);</span>
+<span class="nc" id="L577">                int item = readUnsignedShort(u + 10);</span>
+<span class="nc bnc" id="L578" title="All 2 branches missed.">                if (item != 0) {</span>
+<span class="nc" id="L579">                    enclosingName = readUTF8(items[item], c);</span>
+<span class="nc" id="L580">                    enclosingDesc = readUTF8(items[item] + 2, c);</span>
+                }
+<span class="nc bnc" id="L582" title="All 2 branches missed.">            } else if (SIGNATURES &amp;&amp; &quot;Signature&quot;.equals(attrName)) {</span>
+<span class="nc" id="L583">                signature = readUTF8(u + 8, c);</span>
+<span class="nc" id="L584">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L585" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L586">                anns = u + 8;</span>
+<span class="nc" id="L587">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L588" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L589">                tanns = u + 8;</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">            } else if (&quot;Deprecated&quot;.equals(attrName)) {</span>
+<span class="nc" id="L591">                access |= Opcodes.ACC_DEPRECATED;</span>
+<span class="nc bnc" id="L592" title="All 2 branches missed.">            } else if (&quot;Synthetic&quot;.equals(attrName)) {</span>
+<span class="nc" id="L593">                access |= Opcodes.ACC_SYNTHETIC</span>
+                        | ClassWriter.ACC_SYNTHETIC_ATTRIBUTE;
+<span class="nc bnc" id="L595" title="All 2 branches missed.">            } else if (&quot;SourceDebugExtension&quot;.equals(attrName)) {</span>
+<span class="nc" id="L596">                int len = readInt(u + 4);</span>
+<span class="nc" id="L597">                sourceDebug = readUTF(u + 8, len, new char[len]);</span>
+<span class="nc" id="L598">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L599" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L600">                ianns = u + 8;</span>
+<span class="nc" id="L601">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L602" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L603">                itanns = u + 8;</span>
+<span class="nc bnc" id="L604" title="All 2 branches missed.">            } else if (&quot;BootstrapMethods&quot;.equals(attrName)) {</span>
+<span class="nc" id="L605">                int[] bootstrapMethods = new int[readUnsignedShort(u + 8)];</span>
+<span class="nc bnc" id="L606" title="All 2 branches missed.">                for (int j = 0, v = u + 10; j &lt; bootstrapMethods.length; j++) {</span>
+<span class="nc" id="L607">                    bootstrapMethods[j] = v;</span>
+<span class="nc" id="L608">                    v += 2 + readUnsignedShort(v + 2) &lt;&lt; 1;</span>
+                }
+<span class="nc" id="L610">                context.bootstrapMethods = bootstrapMethods;</span>
+<span class="nc" id="L611">            } else {</span>
+<span class="nc" id="L612">                Attribute attr = readAttribute(attrs, attrName, u + 8,</span>
+<span class="nc" id="L613">                        readInt(u + 4), c, -1, null);</span>
+<span class="nc bnc" id="L614" title="All 2 branches missed.">                if (attr != null) {</span>
+<span class="nc" id="L615">                    attr.next = attributes;</span>
+<span class="nc" id="L616">                    attributes = attr;</span>
+                }
+            }
+<span class="nc" id="L619">            u += 6 + readInt(u + 4);</span>
+        }
+
+        // visits the class declaration
+<span class="nc" id="L623">        classVisitor.visit(readInt(items[1] - 7), access, name, signature,</span>
+                superClass, interfaces);
+
+        // visits the source and debug info
+<span class="nc bnc" id="L627" title="All 6 branches missed.">        if ((flags &amp; SKIP_DEBUG) == 0</span>
+                &amp;&amp; (sourceFile != null || sourceDebug != null)) {
+<span class="nc" id="L629">            classVisitor.visitSource(sourceFile, sourceDebug);</span>
+        }
+
+        // visits the outer class
+<span class="nc bnc" id="L633" title="All 2 branches missed.">        if (enclosingOwner != null) {</span>
+<span class="nc" id="L634">            classVisitor.visitOuterClass(enclosingOwner, enclosingName,</span>
+                    enclosingDesc);
+        }
+
+        // visits the class annotations and type annotations
+<span class="nc bnc" id="L639" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; anns != 0) {</span>
+<span class="nc bnc" id="L640" title="All 2 branches missed.">            for (int i = readUnsignedShort(anns), v = anns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L641">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L642">                        classVisitor.visitAnnotation(readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L645" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; ianns != 0) {</span>
+<span class="nc bnc" id="L646" title="All 2 branches missed.">            for (int i = readUnsignedShort(ianns), v = ianns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L647">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L648">                        classVisitor.visitAnnotation(readUTF8(v, c), false));</span>
+            }
+        }
+<span class="nc bnc" id="L651" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; tanns != 0) {</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">            for (int i = readUnsignedShort(tanns), v = tanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L653">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L654">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L655">                        classVisitor.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L656">                                context.typePath, readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L659" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; itanns != 0) {</span>
+<span class="nc bnc" id="L660" title="All 2 branches missed.">            for (int i = readUnsignedShort(itanns), v = itanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L661">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L662">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L663">                        classVisitor.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L664">                                context.typePath, readUTF8(v, c), false));</span>
+            }
+        }
+
+        // visits the attributes
+<span class="nc bnc" id="L669" title="All 2 branches missed.">        while (attributes != null) {</span>
+<span class="nc" id="L670">            Attribute attr = attributes.next;</span>
+<span class="nc" id="L671">            attributes.next = null;</span>
+<span class="nc" id="L672">            classVisitor.visitAttribute(attributes);</span>
+<span class="nc" id="L673">            attributes = attr;</span>
+<span class="nc" id="L674">        }</span>
+
+        // visits the inner classes
+<span class="nc bnc" id="L677" title="All 2 branches missed.">        if (innerClasses != 0) {</span>
+<span class="nc" id="L678">            int v = innerClasses + 2;</span>
+<span class="nc bnc" id="L679" title="All 2 branches missed.">            for (int i = readUnsignedShort(innerClasses); i &gt; 0; --i) {</span>
+<span class="nc" id="L680">                classVisitor.visitInnerClass(readClass(v, c),</span>
+<span class="nc" id="L681">                        readClass(v + 2, c), readUTF8(v + 4, c),</span>
+<span class="nc" id="L682">                        readUnsignedShort(v + 6));</span>
+<span class="nc" id="L683">                v += 8;</span>
+            }
+        }
+
+        // visits the fields and methods
+<span class="nc" id="L688">        u = header + 10 + 2 * interfaces.length;</span>
+<span class="nc bnc" id="L689" title="All 2 branches missed.">        for (int i = readUnsignedShort(u - 2); i &gt; 0; --i) {</span>
+<span class="nc" id="L690">            u = readField(classVisitor, context, u);</span>
+        }
+<span class="nc" id="L692">        u += 2;</span>
+<span class="nc bnc" id="L693" title="All 2 branches missed.">        for (int i = readUnsignedShort(u - 2); i &gt; 0; --i) {</span>
+<span class="nc" id="L694">            u = readMethod(classVisitor, context, u);</span>
+        }
+
+        // visits the end of the class
+<span class="nc" id="L698">        classVisitor.visitEnd();</span>
+<span class="nc" id="L699">    }</span>
+
+    /**
+     * Reads a field and makes the given visitor visit it.
+     *
+     * @param classVisitor
+     *            the visitor that must visit the field.
+     * @param context
+     *            information about the class being parsed.
+     * @param u
+     *            the start offset of the field in the class file.
+     * @return the offset of the first byte following the field in the class.
+     */
+    private int readField(final ClassVisitor classVisitor,
+                          final Context context, int u) {
+        // reads the field declaration
+<span class="nc" id="L715">        char[] c = context.buffer;</span>
+<span class="nc" id="L716">        int access = readUnsignedShort(u);</span>
+<span class="nc" id="L717">        String name = readUTF8(u + 2, c);</span>
+<span class="nc" id="L718">        String desc = readUTF8(u + 4, c);</span>
+<span class="nc" id="L719">        u += 6;</span>
+
+        // reads the field attributes
+<span class="nc" id="L722">        String signature = null;</span>
+<span class="nc" id="L723">        int anns = 0;</span>
+<span class="nc" id="L724">        int ianns = 0;</span>
+<span class="nc" id="L725">        int tanns = 0;</span>
+<span class="nc" id="L726">        int itanns = 0;</span>
+<span class="nc" id="L727">        Object value = null;</span>
+<span class="nc" id="L728">        Attribute attributes = null;</span>
+
+<span class="nc bnc" id="L730" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L731">            String attrName = readUTF8(u + 2, c);</span>
+            // tests are sorted in decreasing frequency order
+            // (based on frequencies observed on typical classes)
+<span class="nc bnc" id="L734" title="All 2 branches missed.">            if (&quot;ConstantValue&quot;.equals(attrName)) {</span>
+<span class="nc" id="L735">                int item = readUnsignedShort(u + 8);</span>
+<span class="nc bnc" id="L736" title="All 2 branches missed.">                value = item == 0 ? null : readConst(item, c);</span>
+<span class="nc bnc" id="L737" title="All 2 branches missed.">            } else if (SIGNATURES &amp;&amp; &quot;Signature&quot;.equals(attrName)) {</span>
+<span class="nc" id="L738">                signature = readUTF8(u + 8, c);</span>
+<span class="nc bnc" id="L739" title="All 2 branches missed.">            } else if (&quot;Deprecated&quot;.equals(attrName)) {</span>
+<span class="nc" id="L740">                access |= Opcodes.ACC_DEPRECATED;</span>
+<span class="nc bnc" id="L741" title="All 2 branches missed.">            } else if (&quot;Synthetic&quot;.equals(attrName)) {</span>
+<span class="nc" id="L742">                access |= Opcodes.ACC_SYNTHETIC</span>
+                        | ClassWriter.ACC_SYNTHETIC_ATTRIBUTE;
+<span class="nc" id="L744">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L745" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L746">                anns = u + 8;</span>
+<span class="nc" id="L747">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L748" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L749">                tanns = u + 8;</span>
+<span class="nc" id="L750">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L751" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L752">                ianns = u + 8;</span>
+<span class="nc" id="L753">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L754" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L755">                itanns = u + 8;</span>
+            } else {
+<span class="nc" id="L757">                Attribute attr = readAttribute(context.attrs, attrName, u + 8,</span>
+<span class="nc" id="L758">                        readInt(u + 4), c, -1, null);</span>
+<span class="nc bnc" id="L759" title="All 2 branches missed.">                if (attr != null) {</span>
+<span class="nc" id="L760">                    attr.next = attributes;</span>
+<span class="nc" id="L761">                    attributes = attr;</span>
+                }
+            }
+<span class="nc" id="L764">            u += 6 + readInt(u + 4);</span>
+        }
+<span class="nc" id="L766">        u += 2;</span>
+
+        // visits the field declaration
+<span class="nc" id="L769">        FieldVisitor fv = classVisitor.visitField(access, name, desc,</span>
+                signature, value);
+<span class="nc bnc" id="L771" title="All 2 branches missed.">        if (fv == null) {</span>
+<span class="nc" id="L772">            return u;</span>
+        }
+
+        // visits the field annotations and type annotations
+<span class="nc bnc" id="L776" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; anns != 0) {</span>
+<span class="nc bnc" id="L777" title="All 2 branches missed.">            for (int i = readUnsignedShort(anns), v = anns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L778">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L779">                        fv.visitAnnotation(readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L782" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; ianns != 0) {</span>
+<span class="nc bnc" id="L783" title="All 2 branches missed.">            for (int i = readUnsignedShort(ianns), v = ianns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L784">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L785">                        fv.visitAnnotation(readUTF8(v, c), false));</span>
+            }
+        }
+<span class="nc bnc" id="L788" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; tanns != 0) {</span>
+<span class="nc bnc" id="L789" title="All 2 branches missed.">            for (int i = readUnsignedShort(tanns), v = tanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L790">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L791">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L792">                        fv.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L793">                                context.typePath, readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L796" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; itanns != 0) {</span>
+<span class="nc bnc" id="L797" title="All 2 branches missed.">            for (int i = readUnsignedShort(itanns), v = itanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L798">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L799">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L800">                        fv.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L801">                                context.typePath, readUTF8(v, c), false));</span>
+            }
+        }
+
+        // visits the field attributes
+<span class="nc bnc" id="L806" title="All 2 branches missed.">        while (attributes != null) {</span>
+<span class="nc" id="L807">            Attribute attr = attributes.next;</span>
+<span class="nc" id="L808">            attributes.next = null;</span>
+<span class="nc" id="L809">            fv.visitAttribute(attributes);</span>
+<span class="nc" id="L810">            attributes = attr;</span>
+<span class="nc" id="L811">        }</span>
+
+        // visits the end of the field
+<span class="nc" id="L814">        fv.visitEnd();</span>
+
+<span class="nc" id="L816">        return u;</span>
+    }
+
+    /**
+     * Reads a method and makes the given visitor visit it.
+     *
+     * @param classVisitor
+     *            the visitor that must visit the method.
+     * @param context
+     *            information about the class being parsed.
+     * @param u
+     *            the start offset of the method in the class file.
+     * @return the offset of the first byte following the method in the class.
+     */
+    private int readMethod(final ClassVisitor classVisitor,
+                           final Context context, int u) {
+        // reads the method declaration
+<span class="nc" id="L833">        char[] c = context.buffer;</span>
+<span class="nc" id="L834">        context.access = readUnsignedShort(u);</span>
+<span class="nc" id="L835">        context.name = readUTF8(u + 2, c);</span>
+<span class="nc" id="L836">        context.desc = readUTF8(u + 4, c);</span>
+<span class="nc" id="L837">        u += 6;</span>
+
+        // reads the method attributes
+<span class="nc" id="L840">        int code = 0;</span>
+<span class="nc" id="L841">        int exception = 0;</span>
+<span class="nc" id="L842">        String[] exceptions = null;</span>
+<span class="nc" id="L843">        String signature = null;</span>
+<span class="nc" id="L844">        int methodParameters = 0;</span>
+<span class="nc" id="L845">        int anns = 0;</span>
+<span class="nc" id="L846">        int ianns = 0;</span>
+<span class="nc" id="L847">        int tanns = 0;</span>
+<span class="nc" id="L848">        int itanns = 0;</span>
+<span class="nc" id="L849">        int dann = 0;</span>
+<span class="nc" id="L850">        int mpanns = 0;</span>
+<span class="nc" id="L851">        int impanns = 0;</span>
+<span class="nc" id="L852">        int firstAttribute = u;</span>
+<span class="nc" id="L853">        Attribute attributes = null;</span>
+
+<span class="nc bnc" id="L855" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L856">            String attrName = readUTF8(u + 2, c);</span>
+            // tests are sorted in decreasing frequency order
+            // (based on frequencies observed on typical classes)
+<span class="nc bnc" id="L859" title="All 2 branches missed.">            if (&quot;Code&quot;.equals(attrName)) {</span>
+<span class="nc bnc" id="L860" title="All 2 branches missed.">                if ((context.flags &amp; SKIP_CODE) == 0) {</span>
+<span class="nc" id="L861">                    code = u + 8;</span>
+                }
+<span class="nc bnc" id="L863" title="All 2 branches missed.">            } else if (&quot;Exceptions&quot;.equals(attrName)) {</span>
+<span class="nc" id="L864">                exceptions = new String[readUnsignedShort(u + 8)];</span>
+<span class="nc" id="L865">                exception = u + 10;</span>
+<span class="nc bnc" id="L866" title="All 2 branches missed.">                for (int j = 0; j &lt; exceptions.length; ++j) {</span>
+<span class="nc" id="L867">                    exceptions[j] = readClass(exception, c);</span>
+<span class="nc" id="L868">                    exception += 2;</span>
+                }
+<span class="nc bnc" id="L870" title="All 2 branches missed.">            } else if (SIGNATURES &amp;&amp; &quot;Signature&quot;.equals(attrName)) {</span>
+<span class="nc" id="L871">                signature = readUTF8(u + 8, c);</span>
+<span class="nc bnc" id="L872" title="All 2 branches missed.">            } else if (&quot;Deprecated&quot;.equals(attrName)) {</span>
+<span class="nc" id="L873">                context.access |= Opcodes.ACC_DEPRECATED;</span>
+<span class="nc" id="L874">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L875" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L876">                anns = u + 8;</span>
+<span class="nc" id="L877">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L878" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L879">                tanns = u + 8;</span>
+<span class="nc bnc" id="L880" title="All 2 branches missed.">            } else if (ANNOTATIONS &amp;&amp; &quot;AnnotationDefault&quot;.equals(attrName)) {</span>
+<span class="nc" id="L881">                dann = u + 8;</span>
+<span class="nc bnc" id="L882" title="All 2 branches missed.">            } else if (&quot;Synthetic&quot;.equals(attrName)) {</span>
+<span class="nc" id="L883">                context.access |= Opcodes.ACC_SYNTHETIC</span>
+                        | ClassWriter.ACC_SYNTHETIC_ATTRIBUTE;
+<span class="nc" id="L885">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L886" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L887">                ianns = u + 8;</span>
+<span class="nc" id="L888">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L889" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L890">                itanns = u + 8;</span>
+<span class="nc" id="L891">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L892" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleParameterAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L893">                mpanns = u + 8;</span>
+<span class="nc" id="L894">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L895" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleParameterAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L896">                impanns = u + 8;</span>
+<span class="nc bnc" id="L897" title="All 2 branches missed.">            } else if (&quot;MethodParameters&quot;.equals(attrName)) {</span>
+<span class="nc" id="L898">                methodParameters = u + 8;</span>
+            } else {
+<span class="nc" id="L900">                Attribute attr = readAttribute(context.attrs, attrName, u + 8,</span>
+<span class="nc" id="L901">                        readInt(u + 4), c, -1, null);</span>
+<span class="nc bnc" id="L902" title="All 2 branches missed.">                if (attr != null) {</span>
+<span class="nc" id="L903">                    attr.next = attributes;</span>
+<span class="nc" id="L904">                    attributes = attr;</span>
+                }
+            }
+<span class="nc" id="L907">            u += 6 + readInt(u + 4);</span>
+        }
+<span class="nc" id="L909">        u += 2;</span>
+
+        // visits the method declaration
+<span class="nc" id="L912">        MethodVisitor mv = classVisitor.visitMethod(context.access,</span>
+                context.name, context.desc, signature, exceptions);
+<span class="nc bnc" id="L914" title="All 2 branches missed.">        if (mv == null) {</span>
+<span class="nc" id="L915">            return u;</span>
+        }
+
+        /*
+         * if the returned MethodVisitor is in fact a MethodWriter, it means
+         * there is no method adapter between the reader and the writer. If, in
+         * addition, the writer's constant pool was copied from this reader
+         * (mw.cw.cr == this), and the signature and exceptions of the method
+         * have not been changed, then it is possible to skip all visit events
+         * and just copy the original code of the method to the writer (the
+         * access, name and descriptor can have been changed, this is not
+         * important since they are not copied as is from the reader).
+         */
+<span class="nc bnc" id="L928" title="All 2 branches missed.">        if (WRITER &amp;&amp; mv instanceof MethodWriter) {</span>
+<span class="nc" id="L929">            MethodWriter mw = (MethodWriter) mv;</span>
+<span class="nc bnc" id="L930" title="All 4 branches missed.">            if (mw.cw.cr == this &amp;&amp; signature == mw.signature) {</span>
+<span class="nc" id="L931">                boolean sameExceptions = false;</span>
+<span class="nc bnc" id="L932" title="All 2 branches missed.">                if (exceptions == null) {</span>
+<span class="nc bnc" id="L933" title="All 2 branches missed.">                    sameExceptions = mw.exceptionCount == 0;</span>
+<span class="nc bnc" id="L934" title="All 2 branches missed.">                } else if (exceptions.length == mw.exceptionCount) {</span>
+<span class="nc" id="L935">                    sameExceptions = true;</span>
+<span class="nc bnc" id="L936" title="All 2 branches missed.">                    for (int j = exceptions.length - 1; j &gt;= 0; --j) {</span>
+<span class="nc" id="L937">                        exception -= 2;</span>
+<span class="nc bnc" id="L938" title="All 2 branches missed.">                        if (mw.exceptions[j] != readUnsignedShort(exception)) {</span>
+<span class="nc" id="L939">                            sameExceptions = false;</span>
+<span class="nc" id="L940">                            break;</span>
+                        }
+                    }
+                }
+<span class="nc bnc" id="L944" title="All 2 branches missed.">                if (sameExceptions) {</span>
+                    /*
+                     * we do not copy directly the code into MethodWriter to
+                     * save a byte array copy operation. The real copy will be
+                     * done in ClassWriter.toByteArray().
+                     */
+<span class="nc" id="L950">                    mw.classReaderOffset = firstAttribute;</span>
+<span class="nc" id="L951">                    mw.classReaderLength = u - firstAttribute;</span>
+<span class="nc" id="L952">                    return u;</span>
+                }
+            }
+        }
+
+        // visit the method parameters
+<span class="nc bnc" id="L958" title="All 2 branches missed.">        if (methodParameters != 0) {</span>
+<span class="nc bnc" id="L959" title="All 2 branches missed.">            for (int i = b[methodParameters] &amp; 0xFF, v = methodParameters + 1; i &gt; 0; --i, v = v + 4) {</span>
+<span class="nc" id="L960">                mv.visitParameter(readUTF8(v, c), readUnsignedShort(v + 2));</span>
+            }
+        }
+
+        // visits the method annotations
+<span class="nc bnc" id="L965" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; dann != 0) {</span>
+<span class="nc" id="L966">            AnnotationVisitor dv = mv.visitAnnotationDefault();</span>
+<span class="nc" id="L967">            readAnnotationValue(dann, c, null, dv);</span>
+<span class="nc bnc" id="L968" title="All 2 branches missed.">            if (dv != null) {</span>
+<span class="nc" id="L969">                dv.visitEnd();</span>
+            }
+        }
+<span class="nc bnc" id="L972" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; anns != 0) {</span>
+<span class="nc bnc" id="L973" title="All 2 branches missed.">            for (int i = readUnsignedShort(anns), v = anns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L974">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L975">                        mv.visitAnnotation(readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L978" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; ianns != 0) {</span>
+<span class="nc bnc" id="L979" title="All 2 branches missed.">            for (int i = readUnsignedShort(ianns), v = ianns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L980">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L981">                        mv.visitAnnotation(readUTF8(v, c), false));</span>
+            }
+        }
+<span class="nc bnc" id="L984" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; tanns != 0) {</span>
+<span class="nc bnc" id="L985" title="All 2 branches missed.">            for (int i = readUnsignedShort(tanns), v = tanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L986">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L987">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L988">                        mv.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L989">                                context.typePath, readUTF8(v, c), true));</span>
+            }
+        }
+<span class="nc bnc" id="L992" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; itanns != 0) {</span>
+<span class="nc bnc" id="L993" title="All 2 branches missed.">            for (int i = readUnsignedShort(itanns), v = itanns + 2; i &gt; 0; --i) {</span>
+<span class="nc" id="L994">                v = readAnnotationTarget(context, v);</span>
+<span class="nc" id="L995">                v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L996">                        mv.visitTypeAnnotation(context.typeRef,</span>
+<span class="nc" id="L997">                                context.typePath, readUTF8(v, c), false));</span>
+            }
+        }
+<span class="nc bnc" id="L1000" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; mpanns != 0) {</span>
+<span class="nc" id="L1001">            readParameterAnnotations(mv, context, mpanns, true);</span>
+        }
+<span class="nc bnc" id="L1003" title="All 2 branches missed.">        if (ANNOTATIONS &amp;&amp; impanns != 0) {</span>
+<span class="nc" id="L1004">            readParameterAnnotations(mv, context, impanns, false);</span>
+        }
+
+        // visits the method attributes
+<span class="nc bnc" id="L1008" title="All 2 branches missed.">        while (attributes != null) {</span>
+<span class="nc" id="L1009">            Attribute attr = attributes.next;</span>
+<span class="nc" id="L1010">            attributes.next = null;</span>
+<span class="nc" id="L1011">            mv.visitAttribute(attributes);</span>
+<span class="nc" id="L1012">            attributes = attr;</span>
+<span class="nc" id="L1013">        }</span>
+
+        // visits the method code
+<span class="nc bnc" id="L1016" title="All 2 branches missed.">        if (code != 0) {</span>
+<span class="nc" id="L1017">            mv.visitCode();</span>
+<span class="nc" id="L1018">            readCode(mv, context, code);</span>
+        }
+
+        // visits the end of the method
+<span class="nc" id="L1022">        mv.visitEnd();</span>
+
+<span class="nc" id="L1024">        return u;</span>
+    }
+
+    /**
+     * Reads the bytecode of a method and makes the given visitor visit it.
+     *
+     * @param mv
+     *            the visitor that must visit the method's code.
+     * @param context
+     *            information about the class being parsed.
+     * @param u
+     *            the start offset of the code attribute in the class file.
+     */
+    private void readCode(final MethodVisitor mv, final Context context, int u) {
+        // reads the header
+<span class="nc" id="L1039">        byte[] b = this.b;</span>
+<span class="nc" id="L1040">        char[] c = context.buffer;</span>
+<span class="nc" id="L1041">        int maxStack = readUnsignedShort(u);</span>
+<span class="nc" id="L1042">        int maxLocals = readUnsignedShort(u + 2);</span>
+<span class="nc" id="L1043">        int codeLength = readInt(u + 4);</span>
+<span class="nc" id="L1044">        u += 8;</span>
+
+        // reads the bytecode to find the labels
+<span class="nc" id="L1047">        int codeStart = u;</span>
+<span class="nc" id="L1048">        int codeEnd = u + codeLength;</span>
+<span class="nc" id="L1049">        Label[] labels = context.labels = new Label[codeLength + 2];</span>
+<span class="nc" id="L1050">        readLabel(codeLength + 1, labels);</span>
+<span class="nc bnc" id="L1051" title="All 2 branches missed.">        while (u &lt; codeEnd) {</span>
+<span class="nc" id="L1052">            int offset = u - codeStart;</span>
+<span class="nc" id="L1053">            int opcode = b[u] &amp; 0xFF;</span>
+<span class="nc bnc" id="L1054" title="All 10 branches missed.">            switch (ClassWriter.TYPE[opcode]) {</span>
+            case ClassWriter.NOARG_INSN:
+            case ClassWriter.IMPLVAR_INSN:
+<span class="nc" id="L1057">                u += 1;</span>
+<span class="nc" id="L1058">                break;</span>
+            case ClassWriter.LABEL_INSN:
+<span class="nc" id="L1060">                readLabel(offset + readShort(u + 1), labels);</span>
+<span class="nc" id="L1061">                u += 3;</span>
+<span class="nc" id="L1062">                break;</span>
+            case ClassWriter.LABELW_INSN:
+<span class="nc" id="L1064">                readLabel(offset + readInt(u + 1), labels);</span>
+<span class="nc" id="L1065">                u += 5;</span>
+<span class="nc" id="L1066">                break;</span>
+            case ClassWriter.WIDE_INSN:
+<span class="nc" id="L1068">                opcode = b[u + 1] &amp; 0xFF;</span>
+<span class="nc bnc" id="L1069" title="All 2 branches missed.">                if (opcode == Opcodes.IINC) {</span>
+<span class="nc" id="L1070">                    u += 6;</span>
+                } else {
+<span class="nc" id="L1072">                    u += 4;</span>
+                }
+<span class="nc" id="L1074">                break;</span>
+            case ClassWriter.TABL_INSN:
+                // skips 0 to 3 padding bytes
+<span class="nc" id="L1077">                u = u + 4 - (offset &amp; 3);</span>
+                // reads instruction
+<span class="nc" id="L1079">                readLabel(offset + readInt(u), labels);</span>
+<span class="nc bnc" id="L1080" title="All 2 branches missed.">                for (int i = readInt(u + 8) - readInt(u + 4) + 1; i &gt; 0; --i) {</span>
+<span class="nc" id="L1081">                    readLabel(offset + readInt(u + 12), labels);</span>
+<span class="nc" id="L1082">                    u += 4;</span>
+                }
+<span class="nc" id="L1084">                u += 12;</span>
+<span class="nc" id="L1085">                break;</span>
+            case ClassWriter.LOOK_INSN:
+                // skips 0 to 3 padding bytes
+<span class="nc" id="L1088">                u = u + 4 - (offset &amp; 3);</span>
+                // reads instruction
+<span class="nc" id="L1090">                readLabel(offset + readInt(u), labels);</span>
+<span class="nc bnc" id="L1091" title="All 2 branches missed.">                for (int i = readInt(u + 4); i &gt; 0; --i) {</span>
+<span class="nc" id="L1092">                    readLabel(offset + readInt(u + 12), labels);</span>
+<span class="nc" id="L1093">                    u += 8;</span>
+                }
+<span class="nc" id="L1095">                u += 8;</span>
+<span class="nc" id="L1096">                break;</span>
+            case ClassWriter.VAR_INSN:
+            case ClassWriter.SBYTE_INSN:
+            case ClassWriter.LDC_INSN:
+<span class="nc" id="L1100">                u += 2;</span>
+<span class="nc" id="L1101">                break;</span>
+            case ClassWriter.SHORT_INSN:
+            case ClassWriter.LDCW_INSN:
+            case ClassWriter.FIELDORMETH_INSN:
+            case ClassWriter.TYPE_INSN:
+            case ClassWriter.IINC_INSN:
+<span class="nc" id="L1107">                u += 3;</span>
+<span class="nc" id="L1108">                break;</span>
+            case ClassWriter.ITFMETH_INSN:
+            case ClassWriter.INDYMETH_INSN:
+<span class="nc" id="L1111">                u += 5;</span>
+<span class="nc" id="L1112">                break;</span>
+            // case MANA_INSN:
+            default:
+<span class="nc" id="L1115">                u += 4;</span>
+                break;
+            }
+<span class="nc" id="L1118">        }</span>
+
+        // reads the try catch entries to find the labels, and also visits them
+<span class="nc bnc" id="L1121" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L1122">            Label start = readLabel(readUnsignedShort(u + 2), labels);</span>
+<span class="nc" id="L1123">            Label end = readLabel(readUnsignedShort(u + 4), labels);</span>
+<span class="nc" id="L1124">            Label handler = readLabel(readUnsignedShort(u + 6), labels);</span>
+<span class="nc" id="L1125">            String type = readUTF8(items[readUnsignedShort(u + 8)], c);</span>
+<span class="nc" id="L1126">            mv.visitTryCatchBlock(start, end, handler, type);</span>
+<span class="nc" id="L1127">            u += 8;</span>
+        }
+<span class="nc" id="L1129">        u += 2;</span>
+
+        // reads the code attributes
+<span class="nc" id="L1132">        int[] tanns = null; // start index of each visible type annotation</span>
+<span class="nc" id="L1133">        int[] itanns = null; // start index of each invisible type annotation</span>
+<span class="nc" id="L1134">        int tann = 0; // current index in tanns array</span>
+<span class="nc" id="L1135">        int itann = 0; // current index in itanns array</span>
+<span class="nc" id="L1136">        int ntoff = -1; // next visible type annotation code offset</span>
+<span class="nc" id="L1137">        int nitoff = -1; // next invisible type annotation code offset</span>
+<span class="nc" id="L1138">        int varTable = 0;</span>
+<span class="nc" id="L1139">        int varTypeTable = 0;</span>
+<span class="nc" id="L1140">        boolean zip = true;</span>
+<span class="nc bnc" id="L1141" title="All 2 branches missed.">        boolean unzip = (context.flags &amp; EXPAND_FRAMES) != 0;</span>
+<span class="nc" id="L1142">        int stackMap = 0;</span>
+<span class="nc" id="L1143">        int stackMapSize = 0;</span>
+<span class="nc" id="L1144">        int frameCount = 0;</span>
+<span class="nc" id="L1145">        Context frame = null;</span>
+<span class="nc" id="L1146">        Attribute attributes = null;</span>
+
+<span class="nc bnc" id="L1148" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc" id="L1149">            String attrName = readUTF8(u + 2, c);</span>
+<span class="nc bnc" id="L1150" title="All 2 branches missed.">            if (&quot;LocalVariableTable&quot;.equals(attrName)) {</span>
+<span class="nc bnc" id="L1151" title="All 2 branches missed.">                if ((context.flags &amp; SKIP_DEBUG) == 0) {</span>
+<span class="nc" id="L1152">                    varTable = u + 8;</span>
+<span class="nc bnc" id="L1153" title="All 2 branches missed.">                    for (int j = readUnsignedShort(u + 8), v = u; j &gt; 0; --j) {</span>
+<span class="nc" id="L1154">                        int label = readUnsignedShort(v + 10);</span>
+<span class="nc bnc" id="L1155" title="All 2 branches missed.">                        if (labels[label] == null) {</span>
+<span class="nc" id="L1156">                            readLabel(label, labels).status |= Label.DEBUG;</span>
+                        }
+<span class="nc" id="L1158">                        label += readUnsignedShort(v + 12);</span>
+<span class="nc bnc" id="L1159" title="All 2 branches missed.">                        if (labels[label] == null) {</span>
+<span class="nc" id="L1160">                            readLabel(label, labels).status |= Label.DEBUG;</span>
+                        }
+<span class="nc" id="L1162">                        v += 10;</span>
+                    }
+                }
+<span class="nc bnc" id="L1165" title="All 2 branches missed.">            } else if (&quot;LocalVariableTypeTable&quot;.equals(attrName)) {</span>
+<span class="nc" id="L1166">                varTypeTable = u + 8;</span>
+<span class="nc bnc" id="L1167" title="All 2 branches missed.">            } else if (&quot;LineNumberTable&quot;.equals(attrName)) {</span>
+<span class="nc bnc" id="L1168" title="All 2 branches missed.">                if ((context.flags &amp; SKIP_DEBUG) == 0) {</span>
+<span class="nc bnc" id="L1169" title="All 2 branches missed.">                    for (int j = readUnsignedShort(u + 8), v = u; j &gt; 0; --j) {</span>
+<span class="nc" id="L1170">                        int label = readUnsignedShort(v + 10);</span>
+<span class="nc bnc" id="L1171" title="All 2 branches missed.">                        if (labels[label] == null) {</span>
+<span class="nc" id="L1172">                            readLabel(label, labels).status |= Label.DEBUG;</span>
+                        }
+<span class="nc" id="L1174">                        labels[label].line = readUnsignedShort(v + 12);</span>
+<span class="nc" id="L1175">                        v += 4;</span>
+                    }
+                }
+<span class="nc" id="L1178">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L1179" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeVisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L1180">                tanns = readTypeAnnotations(mv, context, u + 8, true);</span>
+<span class="nc bnc" id="L1181" title="All 4 branches missed.">                ntoff = tanns.length == 0 || readByte(tanns[0]) &lt; 0x43 ? -1</span>
+<span class="nc" id="L1182">                        : readUnsignedShort(tanns[0] + 1);</span>
+<span class="nc" id="L1183">            } else if (ANNOTATIONS</span>
+<span class="nc bnc" id="L1184" title="All 2 branches missed.">                    &amp;&amp; &quot;RuntimeInvisibleTypeAnnotations&quot;.equals(attrName)) {</span>
+<span class="nc" id="L1185">                itanns = readTypeAnnotations(mv, context, u + 8, false);</span>
+<span class="nc bnc" id="L1186" title="All 4 branches missed.">                nitoff = itanns.length == 0 || readByte(itanns[0]) &lt; 0x43 ? -1</span>
+<span class="nc" id="L1187">                        : readUnsignedShort(itanns[0] + 1);</span>
+<span class="nc bnc" id="L1188" title="All 2 branches missed.">            } else if (FRAMES &amp;&amp; &quot;StackMapTable&quot;.equals(attrName)) {</span>
+<span class="nc bnc" id="L1189" title="All 2 branches missed.">                if ((context.flags &amp; SKIP_FRAMES) == 0) {</span>
+<span class="nc" id="L1190">                    stackMap = u + 10;</span>
+<span class="nc" id="L1191">                    stackMapSize = readInt(u + 4);</span>
+<span class="nc" id="L1192">                    frameCount = readUnsignedShort(u + 8);</span>
+                }
+                /*
+                 * here we do not extract the labels corresponding to the
+                 * attribute content. This would require a full parsing of the
+                 * attribute, which would need to be repeated in the second
+                 * phase (see below). Instead the content of the attribute is
+                 * read one frame at a time (i.e. after a frame has been
+                 * visited, the next frame is read), and the labels it contains
+                 * are also extracted one frame at a time. Thanks to the
+                 * ordering of frames, having only a &quot;one frame lookahead&quot; is
+                 * not a problem, i.e. it is not possible to see an offset
+                 * smaller than the offset of the current insn and for which no
+                 * Label exist.
+                 */
+                /*
+                 * This is not true for UNINITIALIZED type offsets. We solve
+                 * this by parsing the stack map table without a full decoding
+                 * (see below).
+                 */
+<span class="nc bnc" id="L1212" title="All 2 branches missed.">            } else if (FRAMES &amp;&amp; &quot;StackMap&quot;.equals(attrName)) {</span>
+<span class="nc bnc" id="L1213" title="All 2 branches missed.">                if ((context.flags &amp; SKIP_FRAMES) == 0) {</span>
+<span class="nc" id="L1214">                    zip = false;</span>
+<span class="nc" id="L1215">                    stackMap = u + 10;</span>
+<span class="nc" id="L1216">                    stackMapSize = readInt(u + 4);</span>
+<span class="nc" id="L1217">                    frameCount = readUnsignedShort(u + 8);</span>
+                }
+                /*
+                 * IMPORTANT! here we assume that the frames are ordered, as in
+                 * the StackMapTable attribute, although this is not guaranteed
+                 * by the attribute format.
+                 */
+            } else {
+<span class="nc bnc" id="L1225" title="All 2 branches missed.">                for (int j = 0; j &lt; context.attrs.length; ++j) {</span>
+<span class="nc bnc" id="L1226" title="All 2 branches missed.">                    if (context.attrs[j].type.equals(attrName)) {</span>
+<span class="nc" id="L1227">                        Attribute attr = context.attrs[j].read(this, u + 8,</span>
+<span class="nc" id="L1228">                                readInt(u + 4), c, codeStart - 8, labels);</span>
+<span class="nc bnc" id="L1229" title="All 2 branches missed.">                        if (attr != null) {</span>
+<span class="nc" id="L1230">                            attr.next = attributes;</span>
+<span class="nc" id="L1231">                            attributes = attr;</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L1236">            u += 6 + readInt(u + 4);</span>
+        }
+<span class="nc" id="L1238">        u += 2;</span>
+
+        // generates the first (implicit) stack map frame
+<span class="nc bnc" id="L1241" title="All 2 branches missed.">        if (FRAMES &amp;&amp; stackMap != 0) {</span>
+            /*
+             * for the first explicit frame the offset is not offset_delta + 1
+             * but only offset_delta; setting the implicit frame offset to -1
+             * allow the use of the &quot;offset_delta + 1&quot; rule in all cases
+             */
+<span class="nc" id="L1247">            frame = context;</span>
+<span class="nc" id="L1248">            frame.offset = -1;</span>
+<span class="nc" id="L1249">            frame.mode = 0;</span>
+<span class="nc" id="L1250">            frame.localCount = 0;</span>
+<span class="nc" id="L1251">            frame.localDiff = 0;</span>
+<span class="nc" id="L1252">            frame.stackCount = 0;</span>
+<span class="nc" id="L1253">            frame.local = new Object[maxLocals];</span>
+<span class="nc" id="L1254">            frame.stack = new Object[maxStack];</span>
+<span class="nc bnc" id="L1255" title="All 2 branches missed.">            if (unzip) {</span>
+<span class="nc" id="L1256">                getImplicitFrame(context);</span>
+            }
+            /*
+             * Finds labels for UNINITIALIZED frame types. Instead of decoding
+             * each element of the stack map table, we look for 3 consecutive
+             * bytes that &quot;look like&quot; an UNINITIALIZED type (tag 8, offset
+             * within code bounds, NEW instruction at this offset). We may find
+             * false positives (i.e. not real UNINITIALIZED types), but this
+             * should be rare, and the only consequence will be the creation of
+             * an unneeded label. This is better than creating a label for each
+             * NEW instruction, and faster than fully decoding the whole stack
+             * map table.
+             */
+<span class="nc bnc" id="L1269" title="All 2 branches missed.">            for (int i = stackMap; i &lt; stackMap + stackMapSize - 2; ++i) {</span>
+<span class="nc bnc" id="L1270" title="All 2 branches missed.">                if (b[i] == 8) { // UNINITIALIZED FRAME TYPE</span>
+<span class="nc" id="L1271">                    int v = readUnsignedShort(i + 1);</span>
+<span class="nc bnc" id="L1272" title="All 4 branches missed.">                    if (v &gt;= 0 &amp;&amp; v &lt; codeLength) {</span>
+<span class="nc bnc" id="L1273" title="All 2 branches missed.">                        if ((b[codeStart + v] &amp; 0xFF) == Opcodes.NEW) {</span>
+<span class="nc" id="L1274">                            readLabel(v, labels);</span>
+                        }
+                    }
+                }
+            }
+        }
+
+        // visits the instructions
+<span class="nc" id="L1282">        u = codeStart;</span>
+<span class="nc bnc" id="L1283" title="All 2 branches missed.">        while (u &lt; codeEnd) {</span>
+<span class="nc" id="L1284">            int offset = u - codeStart;</span>
+
+            // visits the label and line number for this offset, if any
+<span class="nc" id="L1287">            Label l = labels[offset];</span>
+<span class="nc bnc" id="L1288" title="All 2 branches missed.">            if (l != null) {</span>
+<span class="nc" id="L1289">                mv.visitLabel(l);</span>
+<span class="nc bnc" id="L1290" title="All 4 branches missed.">                if ((context.flags &amp; SKIP_DEBUG) == 0 &amp;&amp; l.line &gt; 0) {</span>
+<span class="nc" id="L1291">                    mv.visitLineNumber(l.line, l);</span>
+                }
+            }
+
+            // visits the frame for this offset, if any
+<span class="nc bnc" id="L1296" title="All 6 branches missed.">            while (FRAMES &amp;&amp; frame != null</span>
+                    &amp;&amp; (frame.offset == offset || frame.offset == -1)) {
+                // if there is a frame for this offset, makes the visitor visit
+                // it, and reads the next frame if there is one.
+<span class="nc bnc" id="L1300" title="All 2 branches missed.">                if (frame.offset != -1) {</span>
+<span class="nc bnc" id="L1301" title="All 4 branches missed.">                    if (!zip || unzip) {</span>
+<span class="nc" id="L1302">                        mv.visitFrame(Opcodes.F_NEW, frame.localCount,</span>
+                                frame.local, frame.stackCount, frame.stack);
+                    } else {
+<span class="nc" id="L1305">                        mv.visitFrame(frame.mode, frame.localDiff, frame.local,</span>
+                                frame.stackCount, frame.stack);
+                    }
+                }
+<span class="nc bnc" id="L1309" title="All 2 branches missed.">                if (frameCount &gt; 0) {</span>
+<span class="nc" id="L1310">                    stackMap = readFrame(stackMap, zip, unzip, frame);</span>
+<span class="nc" id="L1311">                    --frameCount;</span>
+                } else {
+<span class="nc" id="L1313">                    frame = null;</span>
+                }
+            }
+
+            // visits the instruction at this offset
+<span class="nc" id="L1318">            int opcode = b[u] &amp; 0xFF;</span>
+<span class="nc bnc" id="L1319" title="All 17 branches missed.">            switch (ClassWriter.TYPE[opcode]) {</span>
+            case ClassWriter.NOARG_INSN:
+<span class="nc" id="L1321">                mv.visitInsn(opcode);</span>
+<span class="nc" id="L1322">                u += 1;</span>
+<span class="nc" id="L1323">                break;</span>
+            case ClassWriter.IMPLVAR_INSN:
+<span class="nc bnc" id="L1325" title="All 2 branches missed.">                if (opcode &gt; Opcodes.ISTORE) {</span>
+<span class="nc" id="L1326">                    opcode -= 59; // ISTORE_0</span>
+<span class="nc" id="L1327">                    mv.visitVarInsn(Opcodes.ISTORE + (opcode &gt;&gt; 2),</span>
+                            opcode &amp; 0x3);
+                } else {
+<span class="nc" id="L1330">                    opcode -= 26; // ILOAD_0</span>
+<span class="nc" id="L1331">                    mv.visitVarInsn(Opcodes.ILOAD + (opcode &gt;&gt; 2), opcode &amp; 0x3);</span>
+                }
+<span class="nc" id="L1333">                u += 1;</span>
+<span class="nc" id="L1334">                break;</span>
+            case ClassWriter.LABEL_INSN:
+<span class="nc" id="L1336">                mv.visitJumpInsn(opcode, labels[offset + readShort(u + 1)]);</span>
+<span class="nc" id="L1337">                u += 3;</span>
+<span class="nc" id="L1338">                break;</span>
+            case ClassWriter.LABELW_INSN:
+<span class="nc" id="L1340">                mv.visitJumpInsn(opcode - 33, labels[offset + readInt(u + 1)]);</span>
+<span class="nc" id="L1341">                u += 5;</span>
+<span class="nc" id="L1342">                break;</span>
+            case ClassWriter.WIDE_INSN:
+<span class="nc" id="L1344">                opcode = b[u + 1] &amp; 0xFF;</span>
+<span class="nc bnc" id="L1345" title="All 2 branches missed.">                if (opcode == Opcodes.IINC) {</span>
+<span class="nc" id="L1346">                    mv.visitIincInsn(readUnsignedShort(u + 2), readShort(u + 4));</span>
+<span class="nc" id="L1347">                    u += 6;</span>
+                } else {
+<span class="nc" id="L1349">                    mv.visitVarInsn(opcode, readUnsignedShort(u + 2));</span>
+<span class="nc" id="L1350">                    u += 4;</span>
+                }
+<span class="nc" id="L1352">                break;</span>
+            case ClassWriter.TABL_INSN: {
+                // skips 0 to 3 padding bytes
+<span class="nc" id="L1355">                u = u + 4 - (offset &amp; 3);</span>
+                // reads instruction
+<span class="nc" id="L1357">                int label = offset + readInt(u);</span>
+<span class="nc" id="L1358">                int min = readInt(u + 4);</span>
+<span class="nc" id="L1359">                int max = readInt(u + 8);</span>
+<span class="nc" id="L1360">                Label[] table = new Label[max - min + 1];</span>
+<span class="nc" id="L1361">                u += 12;</span>
+<span class="nc bnc" id="L1362" title="All 2 branches missed.">                for (int i = 0; i &lt; table.length; ++i) {</span>
+<span class="nc" id="L1363">                    table[i] = labels[offset + readInt(u)];</span>
+<span class="nc" id="L1364">                    u += 4;</span>
+                }
+<span class="nc" id="L1366">                mv.visitTableSwitchInsn(min, max, labels[label], table);</span>
+<span class="nc" id="L1367">                break;</span>
+            }
+            case ClassWriter.LOOK_INSN: {
+                // skips 0 to 3 padding bytes
+<span class="nc" id="L1371">                u = u + 4 - (offset &amp; 3);</span>
+                // reads instruction
+<span class="nc" id="L1373">                int label = offset + readInt(u);</span>
+<span class="nc" id="L1374">                int len = readInt(u + 4);</span>
+<span class="nc" id="L1375">                int[] keys = new int[len];</span>
+<span class="nc" id="L1376">                Label[] values = new Label[len];</span>
+<span class="nc" id="L1377">                u += 8;</span>
+<span class="nc bnc" id="L1378" title="All 2 branches missed.">                for (int i = 0; i &lt; len; ++i) {</span>
+<span class="nc" id="L1379">                    keys[i] = readInt(u);</span>
+<span class="nc" id="L1380">                    values[i] = labels[offset + readInt(u + 4)];</span>
+<span class="nc" id="L1381">                    u += 8;</span>
+                }
+<span class="nc" id="L1383">                mv.visitLookupSwitchInsn(labels[label], keys, values);</span>
+<span class="nc" id="L1384">                break;</span>
+            }
+            case ClassWriter.VAR_INSN:
+<span class="nc" id="L1387">                mv.visitVarInsn(opcode, b[u + 1] &amp; 0xFF);</span>
+<span class="nc" id="L1388">                u += 2;</span>
+<span class="nc" id="L1389">                break;</span>
+            case ClassWriter.SBYTE_INSN:
+<span class="nc" id="L1391">                mv.visitIntInsn(opcode, b[u + 1]);</span>
+<span class="nc" id="L1392">                u += 2;</span>
+<span class="nc" id="L1393">                break;</span>
+            case ClassWriter.SHORT_INSN:
+<span class="nc" id="L1395">                mv.visitIntInsn(opcode, readShort(u + 1));</span>
+<span class="nc" id="L1396">                u += 3;</span>
+<span class="nc" id="L1397">                break;</span>
+            case ClassWriter.LDC_INSN:
+<span class="nc" id="L1399">                mv.visitLdcInsn(readConst(b[u + 1] &amp; 0xFF, c));</span>
+<span class="nc" id="L1400">                u += 2;</span>
+<span class="nc" id="L1401">                break;</span>
+            case ClassWriter.LDCW_INSN:
+<span class="nc" id="L1403">                mv.visitLdcInsn(readConst(readUnsignedShort(u + 1), c));</span>
+<span class="nc" id="L1404">                u += 3;</span>
+<span class="nc" id="L1405">                break;</span>
+            case ClassWriter.FIELDORMETH_INSN:
+            case ClassWriter.ITFMETH_INSN: {
+<span class="nc" id="L1408">                int cpIndex = items[readUnsignedShort(u + 1)];</span>
+<span class="nc bnc" id="L1409" title="All 2 branches missed.">                boolean itf = b[cpIndex - 1] == ClassWriter.IMETH;</span>
+<span class="nc" id="L1410">                String iowner = readClass(cpIndex, c);</span>
+<span class="nc" id="L1411">                cpIndex = items[readUnsignedShort(cpIndex + 2)];</span>
+<span class="nc" id="L1412">                String iname = readUTF8(cpIndex, c);</span>
+<span class="nc" id="L1413">                String idesc = readUTF8(cpIndex + 2, c);</span>
+<span class="nc bnc" id="L1414" title="All 2 branches missed.">                if (opcode &lt; Opcodes.INVOKEVIRTUAL) {</span>
+<span class="nc" id="L1415">                    mv.visitFieldInsn(opcode, iowner, iname, idesc);</span>
+                } else {
+<span class="nc" id="L1417">                    mv.visitMethodInsn(opcode, iowner, iname, idesc, itf);</span>
+                }
+<span class="nc bnc" id="L1419" title="All 2 branches missed.">                if (opcode == Opcodes.INVOKEINTERFACE) {</span>
+<span class="nc" id="L1420">                    u += 5;</span>
+                } else {
+<span class="nc" id="L1422">                    u += 3;</span>
+                }
+<span class="nc" id="L1424">                break;</span>
+            }
+            case ClassWriter.INDYMETH_INSN: {
+<span class="nc" id="L1427">                int cpIndex = items[readUnsignedShort(u + 1)];</span>
+<span class="nc" id="L1428">                int bsmIndex = context.bootstrapMethods[readUnsignedShort(cpIndex)];</span>
+<span class="nc" id="L1429">                Handle bsm = (Handle) readConst(readUnsignedShort(bsmIndex), c);</span>
+<span class="nc" id="L1430">                int bsmArgCount = readUnsignedShort(bsmIndex + 2);</span>
+<span class="nc" id="L1431">                Object[] bsmArgs = new Object[bsmArgCount];</span>
+<span class="nc" id="L1432">                bsmIndex += 4;</span>
+<span class="nc bnc" id="L1433" title="All 2 branches missed.">                for (int i = 0; i &lt; bsmArgCount; i++) {</span>
+<span class="nc" id="L1434">                    bsmArgs[i] = readConst(readUnsignedShort(bsmIndex), c);</span>
+<span class="nc" id="L1435">                    bsmIndex += 2;</span>
+                }
+<span class="nc" id="L1437">                cpIndex = items[readUnsignedShort(cpIndex + 2)];</span>
+<span class="nc" id="L1438">                String iname = readUTF8(cpIndex, c);</span>
+<span class="nc" id="L1439">                String idesc = readUTF8(cpIndex + 2, c);</span>
+<span class="nc" id="L1440">                mv.visitInvokeDynamicInsn(iname, idesc, bsm, bsmArgs);</span>
+<span class="nc" id="L1441">                u += 5;</span>
+<span class="nc" id="L1442">                break;</span>
+            }
+            case ClassWriter.TYPE_INSN:
+<span class="nc" id="L1445">                mv.visitTypeInsn(opcode, readClass(u + 1, c));</span>
+<span class="nc" id="L1446">                u += 3;</span>
+<span class="nc" id="L1447">                break;</span>
+            case ClassWriter.IINC_INSN:
+<span class="nc" id="L1449">                mv.visitIincInsn(b[u + 1] &amp; 0xFF, b[u + 2]);</span>
+<span class="nc" id="L1450">                u += 3;</span>
+<span class="nc" id="L1451">                break;</span>
+            // case MANA_INSN:
+            default:
+<span class="nc" id="L1454">                mv.visitMultiANewArrayInsn(readClass(u + 1, c), b[u + 3] &amp; 0xFF);</span>
+<span class="nc" id="L1455">                u += 4;</span>
+                break;
+            }
+
+            // visit the instruction annotations, if any
+<span class="nc bnc" id="L1460" title="All 6 branches missed.">            while (tanns != null &amp;&amp; tann &lt; tanns.length &amp;&amp; ntoff &lt;= offset) {</span>
+<span class="nc bnc" id="L1461" title="All 2 branches missed.">                if (ntoff == offset) {</span>
+<span class="nc" id="L1462">                    int v = readAnnotationTarget(context, tanns[tann]);</span>
+<span class="nc" id="L1463">                    readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L1464">                            mv.visitInsnAnnotation(context.typeRef,</span>
+<span class="nc" id="L1465">                                    context.typePath, readUTF8(v, c), true));</span>
+                }
+<span class="nc bnc" id="L1467" title="All 4 branches missed.">                ntoff = ++tann &gt;= tanns.length || readByte(tanns[tann]) &lt; 0x43 ? -1</span>
+<span class="nc" id="L1468">                        : readUnsignedShort(tanns[tann] + 1);</span>
+            }
+<span class="nc bnc" id="L1470" title="All 6 branches missed.">            while (itanns != null &amp;&amp; itann &lt; itanns.length &amp;&amp; nitoff &lt;= offset) {</span>
+<span class="nc bnc" id="L1471" title="All 2 branches missed.">                if (nitoff == offset) {</span>
+<span class="nc" id="L1472">                    int v = readAnnotationTarget(context, itanns[itann]);</span>
+<span class="nc" id="L1473">                    readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L1474">                            mv.visitInsnAnnotation(context.typeRef,</span>
+<span class="nc" id="L1475">                                    context.typePath, readUTF8(v, c), false));</span>
+                }
+<span class="nc bnc" id="L1477" title="All 2 branches missed.">                nitoff = ++itann &gt;= itanns.length</span>
+<span class="nc bnc" id="L1478" title="All 2 branches missed.">                        || readByte(itanns[itann]) &lt; 0x43 ? -1</span>
+<span class="nc" id="L1479">                        : readUnsignedShort(itanns[itann] + 1);</span>
+            }
+<span class="nc" id="L1481">        }</span>
+<span class="nc bnc" id="L1482" title="All 2 branches missed.">        if (labels[codeLength] != null) {</span>
+<span class="nc" id="L1483">            mv.visitLabel(labels[codeLength]);</span>
+        }
+
+        // visits the local variable tables
+<span class="nc bnc" id="L1487" title="All 4 branches missed.">        if ((context.flags &amp; SKIP_DEBUG) == 0 &amp;&amp; varTable != 0) {</span>
+<span class="nc" id="L1488">            int[] typeTable = null;</span>
+<span class="nc bnc" id="L1489" title="All 2 branches missed.">            if (varTypeTable != 0) {</span>
+<span class="nc" id="L1490">                u = varTypeTable + 2;</span>
+<span class="nc" id="L1491">                typeTable = new int[readUnsignedShort(varTypeTable) * 3];</span>
+<span class="nc bnc" id="L1492" title="All 2 branches missed.">                for (int i = typeTable.length; i &gt; 0;) {</span>
+<span class="nc" id="L1493">                    typeTable[--i] = u + 6; // signature</span>
+<span class="nc" id="L1494">                    typeTable[--i] = readUnsignedShort(u + 8); // index</span>
+<span class="nc" id="L1495">                    typeTable[--i] = readUnsignedShort(u); // start</span>
+<span class="nc" id="L1496">                    u += 10;</span>
+                }
+            }
+<span class="nc" id="L1499">            u = varTable + 2;</span>
+<span class="nc bnc" id="L1500" title="All 2 branches missed.">            for (int i = readUnsignedShort(varTable); i &gt; 0; --i) {</span>
+<span class="nc" id="L1501">                int start = readUnsignedShort(u);</span>
+<span class="nc" id="L1502">                int length = readUnsignedShort(u + 2);</span>
+<span class="nc" id="L1503">                int index = readUnsignedShort(u + 8);</span>
+<span class="nc" id="L1504">                String vsignature = null;</span>
+<span class="nc bnc" id="L1505" title="All 2 branches missed.">                if (typeTable != null) {</span>
+<span class="nc bnc" id="L1506" title="All 2 branches missed.">                    for (int j = 0; j &lt; typeTable.length; j += 3) {</span>
+<span class="nc bnc" id="L1507" title="All 4 branches missed.">                        if (typeTable[j] == start &amp;&amp; typeTable[j + 1] == index) {</span>
+<span class="nc" id="L1508">                            vsignature = readUTF8(typeTable[j + 2], c);</span>
+<span class="nc" id="L1509">                            break;</span>
+                        }
+                    }
+                }
+<span class="nc" id="L1513">                mv.visitLocalVariable(readUTF8(u + 4, c), readUTF8(u + 6, c),</span>
+                        vsignature, labels[start], labels[start + length],
+                        index);
+<span class="nc" id="L1516">                u += 10;</span>
+            }
+        }
+
+        // visits the local variables type annotations
+<span class="nc bnc" id="L1521" title="All 2 branches missed.">        if (tanns != null) {</span>
+<span class="nc bnc" id="L1522" title="All 2 branches missed.">            for (int i = 0; i &lt; tanns.length; ++i) {</span>
+<span class="nc bnc" id="L1523" title="All 2 branches missed.">                if ((readByte(tanns[i]) &gt;&gt; 1) == (0x40 &gt;&gt; 1)) {</span>
+<span class="nc" id="L1524">                    int v = readAnnotationTarget(context, tanns[i]);</span>
+<span class="nc" id="L1525">                    v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L1526">                            mv.visitLocalVariableAnnotation(context.typeRef,</span>
+                                    context.typePath, context.start,
+<span class="nc" id="L1528">                                    context.end, context.index, readUTF8(v, c),</span>
+                                    true));
+                }
+            }
+        }
+<span class="nc bnc" id="L1533" title="All 2 branches missed.">        if (itanns != null) {</span>
+<span class="nc bnc" id="L1534" title="All 2 branches missed.">            for (int i = 0; i &lt; itanns.length; ++i) {</span>
+<span class="nc bnc" id="L1535" title="All 2 branches missed.">                if ((readByte(itanns[i]) &gt;&gt; 1) == (0x40 &gt;&gt; 1)) {</span>
+<span class="nc" id="L1536">                    int v = readAnnotationTarget(context, itanns[i]);</span>
+<span class="nc" id="L1537">                    v = readAnnotationValues(v + 2, c, true,</span>
+<span class="nc" id="L1538">                            mv.visitLocalVariableAnnotation(context.typeRef,</span>
+                                    context.typePath, context.start,
+<span class="nc" id="L1540">                                    context.end, context.index, readUTF8(v, c),</span>
+                                    false));
+                }
+            }
+        }
+
+        // visits the code attributes
+<span class="nc bnc" id="L1547" title="All 2 branches missed.">        while (attributes != null) {</span>
+<span class="nc" id="L1548">            Attribute attr = attributes.next;</span>
+<span class="nc" id="L1549">            attributes.next = null;</span>
+<span class="nc" id="L1550">            mv.visitAttribute(attributes);</span>
+<span class="nc" id="L1551">            attributes = attr;</span>
+<span class="nc" id="L1552">        }</span>
+
+        // visits the max stack and max locals values
+<span class="nc" id="L1555">        mv.visitMaxs(maxStack, maxLocals);</span>
+<span class="nc" id="L1556">    }</span>
+
+    /**
+     * Parses a type annotation table to find the labels, and to visit the try
+     * catch block annotations.
+     *
+     * @param u
+     *            the start offset of a type annotation table.
+     * @param mv
+     *            the method visitor to be used to visit the try catch block
+     *            annotations.
+     * @param context
+     *            information about the class being parsed.
+     * @param visible
+     *            if the type annotation table to parse contains runtime visible
+     *            annotations.
+     * @return the start offset of each type annotation in the parsed table.
+     */
+    private int[] readTypeAnnotations(final MethodVisitor mv,
+                                      final Context context, int u, boolean visible) {
+<span class="nc" id="L1576">        char[] c = context.buffer;</span>
+<span class="nc" id="L1577">        int[] offsets = new int[readUnsignedShort(u)];</span>
+<span class="nc" id="L1578">        u += 2;</span>
+<span class="nc bnc" id="L1579" title="All 2 branches missed.">        for (int i = 0; i &lt; offsets.length; ++i) {</span>
+<span class="nc" id="L1580">            offsets[i] = u;</span>
+<span class="nc" id="L1581">            int target = readInt(u);</span>
+<span class="nc bnc" id="L1582" title="All 5 branches missed.">            switch (target &gt;&gt;&gt; 24) {</span>
+            case 0x00: // CLASS_TYPE_PARAMETER
+            case 0x01: // METHOD_TYPE_PARAMETER
+            case 0x16: // METHOD_FORMAL_PARAMETER
+<span class="nc" id="L1586">                u += 2;</span>
+<span class="nc" id="L1587">                break;</span>
+            case 0x13: // FIELD
+            case 0x14: // METHOD_RETURN
+            case 0x15: // METHOD_RECEIVER
+<span class="nc" id="L1591">                u += 1;</span>
+<span class="nc" id="L1592">                break;</span>
+            case 0x40: // LOCAL_VARIABLE
+            case 0x41: // RESOURCE_VARIABLE
+<span class="nc bnc" id="L1595" title="All 2 branches missed.">                for (int j = readUnsignedShort(u + 1); j &gt; 0; --j) {</span>
+<span class="nc" id="L1596">                    int start = readUnsignedShort(u + 3);</span>
+<span class="nc" id="L1597">                    int length = readUnsignedShort(u + 5);</span>
+<span class="nc" id="L1598">                    readLabel(start, context.labels);</span>
+<span class="nc" id="L1599">                    readLabel(start + length, context.labels);</span>
+<span class="nc" id="L1600">                    u += 6;</span>
+                }
+<span class="nc" id="L1602">                u += 3;</span>
+<span class="nc" id="L1603">                break;</span>
+            case 0x47: // CAST
+            case 0x48: // CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT
+            case 0x49: // METHOD_INVOCATION_TYPE_ARGUMENT
+            case 0x4A: // CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT
+            case 0x4B: // METHOD_REFERENCE_TYPE_ARGUMENT
+<span class="nc" id="L1609">                u += 4;</span>
+<span class="nc" id="L1610">                break;</span>
+            // case 0x10: // CLASS_EXTENDS
+            // case 0x11: // CLASS_TYPE_PARAMETER_BOUND
+            // case 0x12: // METHOD_TYPE_PARAMETER_BOUND
+            // case 0x17: // THROWS
+            // case 0x42: // EXCEPTION_PARAMETER
+            // case 0x43: // INSTANCEOF
+            // case 0x44: // NEW
+            // case 0x45: // CONSTRUCTOR_REFERENCE
+            // case 0x46: // METHOD_REFERENCE
+            default:
+<span class="nc" id="L1621">                u += 3;</span>
+                break;
+            }
+<span class="nc" id="L1624">            int pathLength = readByte(u);</span>
+<span class="nc bnc" id="L1625" title="All 2 branches missed.">            if ((target &gt;&gt;&gt; 24) == 0x42) {</span>
+<span class="nc bnc" id="L1626" title="All 2 branches missed.">                TypePath path = pathLength == 0 ? null : new TypePath(b, u);</span>
+<span class="nc" id="L1627">                u += 1 + 2 * pathLength;</span>
+<span class="nc" id="L1628">                u = readAnnotationValues(u + 2, c, true,</span>
+<span class="nc" id="L1629">                        mv.visitTryCatchAnnotation(target, path,</span>
+<span class="nc" id="L1630">                                readUTF8(u, c), visible));</span>
+<span class="nc" id="L1631">            } else {</span>
+<span class="nc" id="L1632">                u = readAnnotationValues(u + 3 + 2 * pathLength, c, true, null);</span>
+            }
+        }
+<span class="nc" id="L1635">        return offsets;</span>
+    }
+
+    /**
+     * Parses the header of a type annotation to extract its target_type and
+     * target_path (the result is stored in the given context), and returns the
+     * start offset of the rest of the type_annotation structure (i.e. the
+     * offset to the type_index field, which is followed by
+     * num_element_value_pairs and then the name,value pairs).
+     *
+     * @param context
+     *            information about the class being parsed. This is where the
+     *            extracted target_type and target_path must be stored.
+     * @param u
+     *            the start offset of a type_annotation structure.
+     * @return the start offset of the rest of the type_annotation structure.
+     */
+    private int readAnnotationTarget(final Context context, int u) {
+<span class="nc" id="L1653">        int target = readInt(u);</span>
+<span class="nc bnc" id="L1654" title="All 5 branches missed.">        switch (target &gt;&gt;&gt; 24) {</span>
+        case 0x00: // CLASS_TYPE_PARAMETER
+        case 0x01: // METHOD_TYPE_PARAMETER
+        case 0x16: // METHOD_FORMAL_PARAMETER
+<span class="nc" id="L1658">            target &amp;= 0xFFFF0000;</span>
+<span class="nc" id="L1659">            u += 2;</span>
+<span class="nc" id="L1660">            break;</span>
+        case 0x13: // FIELD
+        case 0x14: // METHOD_RETURN
+        case 0x15: // METHOD_RECEIVER
+<span class="nc" id="L1664">            target &amp;= 0xFF000000;</span>
+<span class="nc" id="L1665">            u += 1;</span>
+<span class="nc" id="L1666">            break;</span>
+        case 0x40: // LOCAL_VARIABLE
+        case 0x41: { // RESOURCE_VARIABLE
+<span class="nc" id="L1669">            target &amp;= 0xFF000000;</span>
+<span class="nc" id="L1670">            int n = readUnsignedShort(u + 1);</span>
+<span class="nc" id="L1671">            context.start = new Label[n];</span>
+<span class="nc" id="L1672">            context.end = new Label[n];</span>
+<span class="nc" id="L1673">            context.index = new int[n];</span>
+<span class="nc" id="L1674">            u += 3;</span>
+<span class="nc bnc" id="L1675" title="All 2 branches missed.">            for (int i = 0; i &lt; n; ++i) {</span>
+<span class="nc" id="L1676">                int start = readUnsignedShort(u);</span>
+<span class="nc" id="L1677">                int length = readUnsignedShort(u + 2);</span>
+<span class="nc" id="L1678">                context.start[i] = readLabel(start, context.labels);</span>
+<span class="nc" id="L1679">                context.end[i] = readLabel(start + length, context.labels);</span>
+<span class="nc" id="L1680">                context.index[i] = readUnsignedShort(u + 4);</span>
+<span class="nc" id="L1681">                u += 6;</span>
+            }
+<span class="nc" id="L1683">            break;</span>
+        }
+        case 0x47: // CAST
+        case 0x48: // CONSTRUCTOR_INVOCATION_TYPE_ARGUMENT
+        case 0x49: // METHOD_INVOCATION_TYPE_ARGUMENT
+        case 0x4A: // CONSTRUCTOR_REFERENCE_TYPE_ARGUMENT
+        case 0x4B: // METHOD_REFERENCE_TYPE_ARGUMENT
+<span class="nc" id="L1690">            target &amp;= 0xFF0000FF;</span>
+<span class="nc" id="L1691">            u += 4;</span>
+<span class="nc" id="L1692">            break;</span>
+        // case 0x10: // CLASS_EXTENDS
+        // case 0x11: // CLASS_TYPE_PARAMETER_BOUND
+        // case 0x12: // METHOD_TYPE_PARAMETER_BOUND
+        // case 0x17: // THROWS
+        // case 0x42: // EXCEPTION_PARAMETER
+        // case 0x43: // INSTANCEOF
+        // case 0x44: // NEW
+        // case 0x45: // CONSTRUCTOR_REFERENCE
+        // case 0x46: // METHOD_REFERENCE
+        default:
+<span class="nc bnc" id="L1703" title="All 2 branches missed.">            target &amp;= (target &gt;&gt;&gt; 24) &lt; 0x43 ? 0xFFFFFF00 : 0xFF000000;</span>
+<span class="nc" id="L1704">            u += 3;</span>
+            break;
+        }
+<span class="nc" id="L1707">        int pathLength = readByte(u);</span>
+<span class="nc" id="L1708">        context.typeRef = target;</span>
+<span class="nc bnc" id="L1709" title="All 2 branches missed.">        context.typePath = pathLength == 0 ? null : new TypePath(b, u);</span>
+<span class="nc" id="L1710">        return u + 1 + 2 * pathLength;</span>
+    }
+
+    /**
+     * Reads parameter annotations and makes the given visitor visit them.
+     *
+     * @param mv
+     *            the visitor that must visit the annotations.
+     * @param context
+     *            information about the class being parsed.
+     * @param v
+     *            start offset in {@link #b b} of the annotations to be read.
+     * @param visible
+     *            &lt;tt&gt;true&lt;/tt&gt; if the annotations to be read are visible at
+     *            runtime.
+     */
+    private void readParameterAnnotations(final MethodVisitor mv,
+                                          final Context context, int v, final boolean visible) {
+        int i;
+<span class="nc" id="L1729">        int n = b[v++] &amp; 0xFF;</span>
+        // workaround for a bug in javac (javac compiler generates a parameter
+        // annotation array whose size is equal to the number of parameters in
+        // the Java source file, while it should generate an array whose size is
+        // equal to the number of parameters in the method descriptor - which
+        // includes the synthetic parameters added by the compiler). This work-
+        // around supposes that the synthetic parameters are the first ones.
+<span class="nc" id="L1736">        int synthetics = Type.getArgumentTypes(context.desc).length - n;</span>
+        AnnotationVisitor av;
+<span class="nc bnc" id="L1738" title="All 2 branches missed.">        for (i = 0; i &lt; synthetics; ++i) {</span>
+            // virtual annotation to detect synthetic parameters in MethodWriter
+<span class="nc" id="L1740">            av = mv.visitParameterAnnotation(i, &quot;Ljava/lang/Synthetic;&quot;, false);</span>
+<span class="nc bnc" id="L1741" title="All 2 branches missed.">            if (av != null) {</span>
+<span class="nc" id="L1742">                av.visitEnd();</span>
+            }
+        }
+<span class="nc" id="L1745">        char[] c = context.buffer;</span>
+<span class="nc bnc" id="L1746" title="All 2 branches missed.">        for (; i &lt; n + synthetics; ++i) {</span>
+<span class="nc" id="L1747">            int j = readUnsignedShort(v);</span>
+<span class="nc" id="L1748">            v += 2;</span>
+<span class="nc bnc" id="L1749" title="All 2 branches missed.">            for (; j &gt; 0; --j) {</span>
+<span class="nc" id="L1750">                av = mv.visitParameterAnnotation(i, readUTF8(v, c), visible);</span>
+<span class="nc" id="L1751">                v = readAnnotationValues(v + 2, c, true, av);</span>
+            }
+        }
+<span class="nc" id="L1754">    }</span>
+
+    /**
+     * Reads the values of an annotation and makes the given visitor visit them.
+     *
+     * @param v
+     *            the start offset in {@link #b b} of the values to be read
+     *            (including the unsigned short that gives the number of
+     *            values).
+     * @param buf
+     *            buffer to be used to call {@link #readUTF8 readUTF8},
+     *            {@link #readClass(int,char[]) readClass} or {@link #readConst
+     *            readConst}.
+     * @param named
+     *            if the annotation values are named or not.
+     * @param av
+     *            the visitor that must visit the values.
+     * @return the end offset of the annotation values.
+     */
+    private int readAnnotationValues(int v, final char[] buf,
+            final boolean named, final AnnotationVisitor av) {
+<span class="nc" id="L1775">        int i = readUnsignedShort(v);</span>
+<span class="nc" id="L1776">        v += 2;</span>
+<span class="nc bnc" id="L1777" title="All 2 branches missed.">        if (named) {</span>
+<span class="nc bnc" id="L1778" title="All 2 branches missed.">            for (; i &gt; 0; --i) {</span>
+<span class="nc" id="L1779">                v = readAnnotationValue(v + 2, buf, readUTF8(v, buf), av);</span>
+            }
+        } else {
+<span class="nc bnc" id="L1782" title="All 2 branches missed.">            for (; i &gt; 0; --i) {</span>
+<span class="nc" id="L1783">                v = readAnnotationValue(v, buf, null, av);</span>
+            }
+        }
+<span class="nc bnc" id="L1786" title="All 2 branches missed.">        if (av != null) {</span>
+<span class="nc" id="L1787">            av.visitEnd();</span>
+        }
+<span class="nc" id="L1789">        return v;</span>
+    }
+
+    /**
+     * Reads a value of an annotation and makes the given visitor visit it.
+     *
+     * @param v
+     *            the start offset in {@link #b b} of the value to be read
+     *            (&lt;i&gt;not including the value name constant pool index&lt;/i&gt;).
+     * @param buf
+     *            buffer to be used to call {@link #readUTF8 readUTF8},
+     *            {@link #readClass(int,char[]) readClass} or {@link #readConst
+     *            readConst}.
+     * @param name
+     *            the name of the value to be read.
+     * @param av
+     *            the visitor that must visit the value.
+     * @return the end offset of the annotation value.
+     */
+    private int readAnnotationValue(int v, final char[] buf, final String name,
+            final AnnotationVisitor av) {
+        int i;
+<span class="nc bnc" id="L1811" title="All 2 branches missed.">        if (av == null) {</span>
+<span class="nc bnc" id="L1812" title="All 4 branches missed.">            switch (b[v] &amp; 0xFF) {</span>
+            case 'e': // enum_const_value
+<span class="nc" id="L1814">                return v + 5;</span>
+            case '@': // annotation_value
+<span class="nc" id="L1816">                return readAnnotationValues(v + 3, buf, true, null);</span>
+            case '[': // array_value
+<span class="nc" id="L1818">                return readAnnotationValues(v + 1, buf, false, null);</span>
+            default:
+<span class="nc" id="L1820">                return v + 3;</span>
+            }
+        }
+<span class="nc bnc" id="L1823" title="All 11 branches missed.">        switch (b[v++] &amp; 0xFF) {</span>
+        case 'I': // pointer to CONSTANT_Integer
+        case 'J': // pointer to CONSTANT_Long
+        case 'F': // pointer to CONSTANT_Float
+        case 'D': // pointer to CONSTANT_Double
+<span class="nc" id="L1828">            av.visit(name, readConst(readUnsignedShort(v), buf));</span>
+<span class="nc" id="L1829">            v += 2;</span>
+<span class="nc" id="L1830">            break;</span>
+        case 'B': // pointer to CONSTANT_Byte
+<span class="nc" id="L1832">            av.visit(name,</span>
+<span class="nc" id="L1833">                    new Byte((byte) readInt(items[readUnsignedShort(v)])));</span>
+<span class="nc" id="L1834">            v += 2;</span>
+<span class="nc" id="L1835">            break;</span>
+        case 'Z': // pointer to CONSTANT_Boolean
+<span class="nc" id="L1837">            av.visit(name,</span>
+<span class="nc bnc" id="L1838" title="All 2 branches missed.">                    readInt(items[readUnsignedShort(v)]) == 0 ? Boolean.FALSE</span>
+                            : Boolean.TRUE);
+<span class="nc" id="L1840">            v += 2;</span>
+<span class="nc" id="L1841">            break;</span>
+        case 'S': // pointer to CONSTANT_Short
+<span class="nc" id="L1843">            av.visit(name, new Short(</span>
+<span class="nc" id="L1844">                    (short) readInt(items[readUnsignedShort(v)])));</span>
+<span class="nc" id="L1845">            v += 2;</span>
+<span class="nc" id="L1846">            break;</span>
+        case 'C': // pointer to CONSTANT_Char
+<span class="nc" id="L1848">            av.visit(name, new Character(</span>
+<span class="nc" id="L1849">                    (char) readInt(items[readUnsignedShort(v)])));</span>
+<span class="nc" id="L1850">            v += 2;</span>
+<span class="nc" id="L1851">            break;</span>
+        case 's': // pointer to CONSTANT_Utf8
+<span class="nc" id="L1853">            av.visit(name, readUTF8(v, buf));</span>
+<span class="nc" id="L1854">            v += 2;</span>
+<span class="nc" id="L1855">            break;</span>
+        case 'e': // enum_const_value
+<span class="nc" id="L1857">            av.visitEnum(name, readUTF8(v, buf), readUTF8(v + 2, buf));</span>
+<span class="nc" id="L1858">            v += 4;</span>
+<span class="nc" id="L1859">            break;</span>
+        case 'c': // class_info
+<span class="nc" id="L1861">            av.visit(name, Type.getType(readUTF8(v, buf)));</span>
+<span class="nc" id="L1862">            v += 2;</span>
+<span class="nc" id="L1863">            break;</span>
+        case '@': // annotation_value
+<span class="nc" id="L1865">            v = readAnnotationValues(v + 2, buf, true,</span>
+<span class="nc" id="L1866">                    av.visitAnnotation(name, readUTF8(v, buf)));</span>
+<span class="nc" id="L1867">            break;</span>
+        case '[': // array_value
+<span class="nc" id="L1869">            int size = readUnsignedShort(v);</span>
+<span class="nc" id="L1870">            v += 2;</span>
+<span class="nc bnc" id="L1871" title="All 2 branches missed.">            if (size == 0) {</span>
+<span class="nc" id="L1872">                return readAnnotationValues(v - 2, buf, false,</span>
+<span class="nc" id="L1873">                        av.visitArray(name));</span>
+            }
+<span class="nc bnc" id="L1875" title="All 9 branches missed.">            switch (this.b[v++] &amp; 0xFF) {</span>
+            case 'B':
+<span class="nc" id="L1877">                byte[] bv = new byte[size];</span>
+<span class="nc bnc" id="L1878" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1879">                    bv[i] = (byte) readInt(items[readUnsignedShort(v)]);</span>
+<span class="nc" id="L1880">                    v += 3;</span>
+                }
+<span class="nc" id="L1882">                av.visit(name, bv);</span>
+<span class="nc" id="L1883">                --v;</span>
+<span class="nc" id="L1884">                break;</span>
+            case 'Z':
+<span class="nc" id="L1886">                boolean[] zv = new boolean[size];</span>
+<span class="nc bnc" id="L1887" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc bnc" id="L1888" title="All 2 branches missed.">                    zv[i] = readInt(items[readUnsignedShort(v)]) != 0;</span>
+<span class="nc" id="L1889">                    v += 3;</span>
+                }
+<span class="nc" id="L1891">                av.visit(name, zv);</span>
+<span class="nc" id="L1892">                --v;</span>
+<span class="nc" id="L1893">                break;</span>
+            case 'S':
+<span class="nc" id="L1895">                short[] sv = new short[size];</span>
+<span class="nc bnc" id="L1896" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1897">                    sv[i] = (short) readInt(items[readUnsignedShort(v)]);</span>
+<span class="nc" id="L1898">                    v += 3;</span>
+                }
+<span class="nc" id="L1900">                av.visit(name, sv);</span>
+<span class="nc" id="L1901">                --v;</span>
+<span class="nc" id="L1902">                break;</span>
+            case 'C':
+<span class="nc" id="L1904">                char[] cv = new char[size];</span>
+<span class="nc bnc" id="L1905" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1906">                    cv[i] = (char) readInt(items[readUnsignedShort(v)]);</span>
+<span class="nc" id="L1907">                    v += 3;</span>
+                }
+<span class="nc" id="L1909">                av.visit(name, cv);</span>
+<span class="nc" id="L1910">                --v;</span>
+<span class="nc" id="L1911">                break;</span>
+            case 'I':
+<span class="nc" id="L1913">                int[] iv = new int[size];</span>
+<span class="nc bnc" id="L1914" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1915">                    iv[i] = readInt(items[readUnsignedShort(v)]);</span>
+<span class="nc" id="L1916">                    v += 3;</span>
+                }
+<span class="nc" id="L1918">                av.visit(name, iv);</span>
+<span class="nc" id="L1919">                --v;</span>
+<span class="nc" id="L1920">                break;</span>
+            case 'J':
+<span class="nc" id="L1922">                long[] lv = new long[size];</span>
+<span class="nc bnc" id="L1923" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1924">                    lv[i] = readLong(items[readUnsignedShort(v)]);</span>
+<span class="nc" id="L1925">                    v += 3;</span>
+                }
+<span class="nc" id="L1927">                av.visit(name, lv);</span>
+<span class="nc" id="L1928">                --v;</span>
+<span class="nc" id="L1929">                break;</span>
+            case 'F':
+<span class="nc" id="L1931">                float[] fv = new float[size];</span>
+<span class="nc bnc" id="L1932" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1933">                    fv[i] = Float</span>
+<span class="nc" id="L1934">                            .intBitsToFloat(readInt(items[readUnsignedShort(v)]));</span>
+<span class="nc" id="L1935">                    v += 3;</span>
+                }
+<span class="nc" id="L1937">                av.visit(name, fv);</span>
+<span class="nc" id="L1938">                --v;</span>
+<span class="nc" id="L1939">                break;</span>
+            case 'D':
+<span class="nc" id="L1941">                double[] dv = new double[size];</span>
+<span class="nc bnc" id="L1942" title="All 2 branches missed.">                for (i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L1943">                    dv[i] = Double</span>
+<span class="nc" id="L1944">                            .longBitsToDouble(readLong(items[readUnsignedShort(v)]));</span>
+<span class="nc" id="L1945">                    v += 3;</span>
+                }
+<span class="nc" id="L1947">                av.visit(name, dv);</span>
+<span class="nc" id="L1948">                --v;</span>
+<span class="nc" id="L1949">                break;</span>
+            default:
+<span class="nc" id="L1951">                v = readAnnotationValues(v - 3, buf, false, av.visitArray(name));</span>
+            }
+        }
+<span class="nc" id="L1954">        return v;</span>
+    }
+
+    /**
+     * Computes the implicit frame of the method currently being parsed (as
+     * defined in the given {@link Context}) and stores it in the given context.
+     *
+     * @param frame
+     *            information about the class being parsed.
+     */
+    private void getImplicitFrame(final Context frame) {
+<span class="nc" id="L1965">        String desc = frame.desc;</span>
+<span class="nc" id="L1966">        Object[] locals = frame.local;</span>
+<span class="nc" id="L1967">        int local = 0;</span>
+<span class="nc bnc" id="L1968" title="All 2 branches missed.">        if ((frame.access &amp; Opcodes.ACC_STATIC) == 0) {</span>
+<span class="nc bnc" id="L1969" title="All 2 branches missed.">            if (&quot;&lt;init&gt;&quot;.equals(frame.name)) {</span>
+<span class="nc" id="L1970">                locals[local++] = Opcodes.UNINITIALIZED_THIS;</span>
+            } else {
+<span class="nc" id="L1972">                locals[local++] = readClass(header + 2, frame.buffer);</span>
+            }
+        }
+<span class="nc" id="L1975">        int i = 1;</span>
+        loop: while (true) {
+<span class="nc" id="L1977">            int j = i;</span>
+<span class="nc bnc" id="L1978" title="All 7 branches missed.">            switch (desc.charAt(i++)) {</span>
+            case 'Z':
+            case 'C':
+            case 'B':
+            case 'S':
+            case 'I':
+<span class="nc" id="L1984">                locals[local++] = Opcodes.INTEGER;</span>
+<span class="nc" id="L1985">                break;</span>
+            case 'F':
+<span class="nc" id="L1987">                locals[local++] = Opcodes.FLOAT;</span>
+<span class="nc" id="L1988">                break;</span>
+            case 'J':
+<span class="nc" id="L1990">                locals[local++] = Opcodes.LONG;</span>
+<span class="nc" id="L1991">                break;</span>
+            case 'D':
+<span class="nc" id="L1993">                locals[local++] = Opcodes.DOUBLE;</span>
+<span class="nc" id="L1994">                break;</span>
+            case '[':
+<span class="nc bnc" id="L1996" title="All 2 branches missed.">                while (desc.charAt(i) == '[') {</span>
+<span class="nc" id="L1997">                    ++i;</span>
+                }
+<span class="nc bnc" id="L1999" title="All 2 branches missed.">                if (desc.charAt(i) == 'L') {</span>
+<span class="nc" id="L2000">                    ++i;</span>
+<span class="nc bnc" id="L2001" title="All 2 branches missed.">                    while (desc.charAt(i) != ';') {</span>
+<span class="nc" id="L2002">                        ++i;</span>
+                    }
+                }
+<span class="nc" id="L2005">                locals[local++] = desc.substring(j, ++i);</span>
+<span class="nc" id="L2006">                break;</span>
+            case 'L':
+<span class="nc bnc" id="L2008" title="All 2 branches missed.">                while (desc.charAt(i) != ';') {</span>
+<span class="nc" id="L2009">                    ++i;</span>
+                }
+<span class="nc" id="L2011">                locals[local++] = desc.substring(j + 1, i++);</span>
+<span class="nc" id="L2012">                break;</span>
+            default:
+<span class="nc" id="L2014">                break loop;</span>
+            }
+<span class="nc" id="L2016">        }</span>
+<span class="nc" id="L2017">        frame.localCount = local;</span>
+<span class="nc" id="L2018">    }</span>
+
+    /**
+     * Reads a stack map frame and stores the result in the given
+     * {@link Context} object.
+     *
+     * @param stackMap
+     *            the start offset of a stack map frame in the class file.
+     * @param zip
+     *            if the stack map frame at stackMap is compressed or not.
+     * @param unzip
+     *            if the stack map frame must be uncompressed.
+     * @param frame
+     *            where the parsed stack map frame must be stored.
+     * @return the offset of the first byte following the parsed frame.
+     */
+    private int readFrame(int stackMap, boolean zip, boolean unzip,
+            Context frame) {
+<span class="nc" id="L2036">        char[] c = frame.buffer;</span>
+<span class="nc" id="L2037">        Label[] labels = frame.labels;</span>
+        int tag;
+        int delta;
+<span class="nc bnc" id="L2040" title="All 2 branches missed.">        if (zip) {</span>
+<span class="nc" id="L2041">            tag = b[stackMap++] &amp; 0xFF;</span>
+        } else {
+<span class="nc" id="L2043">            tag = MethodWriter.FULL_FRAME;</span>
+<span class="nc" id="L2044">            frame.offset = -1;</span>
+        }
+<span class="nc" id="L2046">        frame.localDiff = 0;</span>
+<span class="nc bnc" id="L2047" title="All 2 branches missed.">        if (tag &lt; MethodWriter.SAME_LOCALS_1_STACK_ITEM_FRAME) {</span>
+<span class="nc" id="L2048">            delta = tag;</span>
+<span class="nc" id="L2049">            frame.mode = Opcodes.F_SAME;</span>
+<span class="nc" id="L2050">            frame.stackCount = 0;</span>
+<span class="nc bnc" id="L2051" title="All 2 branches missed.">        } else if (tag &lt; MethodWriter.RESERVED) {</span>
+<span class="nc" id="L2052">            delta = tag - MethodWriter.SAME_LOCALS_1_STACK_ITEM_FRAME;</span>
+<span class="nc" id="L2053">            stackMap = readFrameType(frame.stack, 0, stackMap, c, labels);</span>
+<span class="nc" id="L2054">            frame.mode = Opcodes.F_SAME1;</span>
+<span class="nc" id="L2055">            frame.stackCount = 1;</span>
+        } else {
+<span class="nc" id="L2057">            delta = readUnsignedShort(stackMap);</span>
+<span class="nc" id="L2058">            stackMap += 2;</span>
+<span class="nc bnc" id="L2059" title="All 2 branches missed.">            if (tag == MethodWriter.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED) {</span>
+<span class="nc" id="L2060">                stackMap = readFrameType(frame.stack, 0, stackMap, c, labels);</span>
+<span class="nc" id="L2061">                frame.mode = Opcodes.F_SAME1;</span>
+<span class="nc" id="L2062">                frame.stackCount = 1;</span>
+<span class="nc bnc" id="L2063" title="All 4 branches missed.">            } else if (tag &gt;= MethodWriter.CHOP_FRAME</span>
+                    &amp;&amp; tag &lt; MethodWriter.SAME_FRAME_EXTENDED) {
+<span class="nc" id="L2065">                frame.mode = Opcodes.F_CHOP;</span>
+<span class="nc" id="L2066">                frame.localDiff = MethodWriter.SAME_FRAME_EXTENDED - tag;</span>
+<span class="nc" id="L2067">                frame.localCount -= frame.localDiff;</span>
+<span class="nc" id="L2068">                frame.stackCount = 0;</span>
+<span class="nc bnc" id="L2069" title="All 2 branches missed.">            } else if (tag == MethodWriter.SAME_FRAME_EXTENDED) {</span>
+<span class="nc" id="L2070">                frame.mode = Opcodes.F_SAME;</span>
+<span class="nc" id="L2071">                frame.stackCount = 0;</span>
+<span class="nc bnc" id="L2072" title="All 2 branches missed.">            } else if (tag &lt; MethodWriter.FULL_FRAME) {</span>
+<span class="nc bnc" id="L2073" title="All 2 branches missed.">                int local = unzip ? frame.localCount : 0;</span>
+<span class="nc bnc" id="L2074" title="All 2 branches missed.">                for (int i = tag - MethodWriter.SAME_FRAME_EXTENDED; i &gt; 0; i--) {</span>
+<span class="nc" id="L2075">                    stackMap = readFrameType(frame.local, local++, stackMap, c,</span>
+                            labels);
+                }
+<span class="nc" id="L2078">                frame.mode = Opcodes.F_APPEND;</span>
+<span class="nc" id="L2079">                frame.localDiff = tag - MethodWriter.SAME_FRAME_EXTENDED;</span>
+<span class="nc" id="L2080">                frame.localCount += frame.localDiff;</span>
+<span class="nc" id="L2081">                frame.stackCount = 0;</span>
+<span class="nc" id="L2082">            } else { // if (tag == FULL_FRAME) {</span>
+<span class="nc" id="L2083">                frame.mode = Opcodes.F_FULL;</span>
+<span class="nc" id="L2084">                int n = readUnsignedShort(stackMap);</span>
+<span class="nc" id="L2085">                stackMap += 2;</span>
+<span class="nc" id="L2086">                frame.localDiff = n;</span>
+<span class="nc" id="L2087">                frame.localCount = n;</span>
+<span class="nc bnc" id="L2088" title="All 2 branches missed.">                for (int local = 0; n &gt; 0; n--) {</span>
+<span class="nc" id="L2089">                    stackMap = readFrameType(frame.local, local++, stackMap, c,</span>
+                            labels);
+                }
+<span class="nc" id="L2092">                n = readUnsignedShort(stackMap);</span>
+<span class="nc" id="L2093">                stackMap += 2;</span>
+<span class="nc" id="L2094">                frame.stackCount = n;</span>
+<span class="nc bnc" id="L2095" title="All 2 branches missed.">                for (int stack = 0; n &gt; 0; n--) {</span>
+<span class="nc" id="L2096">                    stackMap = readFrameType(frame.stack, stack++, stackMap, c,</span>
+                            labels);
+                }
+            }
+        }
+<span class="nc" id="L2101">        frame.offset += delta + 1;</span>
+<span class="nc" id="L2102">        readLabel(frame.offset, labels);</span>
+<span class="nc" id="L2103">        return stackMap;</span>
+    }
+
+    /**
+     * Reads a stack map frame type and stores it at the given index in the
+     * given array.
+     *
+     * @param frame
+     *            the array where the parsed type must be stored.
+     * @param index
+     *            the index in 'frame' where the parsed type must be stored.
+     * @param v
+     *            the start offset of the stack map frame type to read.
+     * @param buf
+     *            a buffer to read strings.
+     * @param labels
+     *            the labels of the method currently being parsed, indexed by
+     *            their offset. If the parsed type is an Uninitialized type, a
+     *            new label for the corresponding NEW instruction is stored in
+     *            this array if it does not already exist.
+     * @return the offset of the first byte after the parsed type.
+     */
+    private int readFrameType(final Object[] frame, final int index, int v,
+            final char[] buf, final Label[] labels) {
+<span class="nc" id="L2127">        int type = b[v++] &amp; 0xFF;</span>
+<span class="nc bnc" id="L2128" title="All 9 branches missed.">        switch (type) {</span>
+        case 0:
+<span class="nc" id="L2130">            frame[index] = Opcodes.TOP;</span>
+<span class="nc" id="L2131">            break;</span>
+        case 1:
+<span class="nc" id="L2133">            frame[index] = Opcodes.INTEGER;</span>
+<span class="nc" id="L2134">            break;</span>
+        case 2:
+<span class="nc" id="L2136">            frame[index] = Opcodes.FLOAT;</span>
+<span class="nc" id="L2137">            break;</span>
+        case 3:
+<span class="nc" id="L2139">            frame[index] = Opcodes.DOUBLE;</span>
+<span class="nc" id="L2140">            break;</span>
+        case 4:
+<span class="nc" id="L2142">            frame[index] = Opcodes.LONG;</span>
+<span class="nc" id="L2143">            break;</span>
+        case 5:
+<span class="nc" id="L2145">            frame[index] = Opcodes.NULL;</span>
+<span class="nc" id="L2146">            break;</span>
+        case 6:
+<span class="nc" id="L2148">            frame[index] = Opcodes.UNINITIALIZED_THIS;</span>
+<span class="nc" id="L2149">            break;</span>
+        case 7: // Object
+<span class="nc" id="L2151">            frame[index] = readClass(v, buf);</span>
+<span class="nc" id="L2152">            v += 2;</span>
+<span class="nc" id="L2153">            break;</span>
+        default: // Uninitialized
+<span class="nc" id="L2155">            frame[index] = readLabel(readUnsignedShort(v), labels);</span>
+<span class="nc" id="L2156">            v += 2;</span>
+        }
+<span class="nc" id="L2158">        return v;</span>
+    }
+
+    /**
+     * Returns the label corresponding to the given offset. The default
+     * implementation of this method creates a label for the given offset if it
+     * has not been already created.
+     *
+     * @param offset
+     *            a bytecode offset in a method.
+     * @param labels
+     *            the already created labels, indexed by their offset. If a
+     *            label already exists for offset this method must not create a
+     *            new one. Otherwise it must store the new label in this array.
+     * @return a non null Label, which must be equal to labels[offset].
+     */
+    protected Label readLabel(int offset, Label[] labels) {
+<span class="nc bnc" id="L2175" title="All 2 branches missed.">        if (labels[offset] == null) {</span>
+<span class="nc" id="L2176">            labels[offset] = new Label();</span>
+        }
+<span class="nc" id="L2178">        return labels[offset];</span>
+    }
+
+    /**
+     * Returns the start index of the attribute_info structure of this class.
+     *
+     * @return the start index of the attribute_info structure of this class.
+     */
+    private int getAttributes() {
+        // skips the header
+<span class="nc" id="L2188">        int u = header + 8 + readUnsignedShort(header + 6) * 2;</span>
+        // skips fields and methods
+<span class="nc bnc" id="L2190" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc bnc" id="L2191" title="All 2 branches missed.">            for (int j = readUnsignedShort(u + 8); j &gt; 0; --j) {</span>
+<span class="nc" id="L2192">                u += 6 + readInt(u + 12);</span>
+            }
+<span class="nc" id="L2194">            u += 8;</span>
+        }
+<span class="nc" id="L2196">        u += 2;</span>
+<span class="nc bnc" id="L2197" title="All 2 branches missed.">        for (int i = readUnsignedShort(u); i &gt; 0; --i) {</span>
+<span class="nc bnc" id="L2198" title="All 2 branches missed.">            for (int j = readUnsignedShort(u + 8); j &gt; 0; --j) {</span>
+<span class="nc" id="L2199">                u += 6 + readInt(u + 12);</span>
+            }
+<span class="nc" id="L2201">            u += 8;</span>
+        }
+        // the attribute_info structure starts just after the methods
+<span class="nc" id="L2204">        return u + 2;</span>
+    }
+
+    /**
+     * Reads an attribute in {@link #b b}.
+     *
+     * @param attrs
+     *            prototypes of the attributes that must be parsed during the
+     *            visit of the class. Any attribute whose type is not equal to
+     *            the type of one the prototypes is ignored (i.e. an empty
+     *            {@link Attribute} instance is returned).
+     * @param type
+     *            the type of the attribute.
+     * @param off
+     *            index of the first byte of the attribute's content in
+     *            {@link #b b}. The 6 attribute header bytes, containing the
+     *            type and the length of the attribute, are not taken into
+     *            account here (they have already been read).
+     * @param len
+     *            the length of the attribute's content.
+     * @param buf
+     *            buffer to be used to call {@link #readUTF8 readUTF8},
+     *            {@link #readClass(int,char[]) readClass} or {@link #readConst
+     *            readConst}.
+     * @param codeOff
+     *            index of the first byte of code's attribute content in
+     *            {@link #b b}, or -1 if the attribute to be read is not a code
+     *            attribute. The 6 attribute header bytes, containing the type
+     *            and the length of the attribute, are not taken into account
+     *            here.
+     * @param labels
+     *            the labels of the method's code, or &lt;tt&gt;null&lt;/tt&gt; if the
+     *            attribute to be read is not a code attribute.
+     * @return the attribute that has been read, or &lt;tt&gt;null&lt;/tt&gt; to skip this
+     *         attribute.
+     */
+    private Attribute readAttribute(final Attribute[] attrs, final String type,
+                                    final int off, final int len, final char[] buf, final int codeOff,
+                                    final Label[] labels) {
+<span class="nc bnc" id="L2243" title="All 2 branches missed.">        for (int i = 0; i &lt; attrs.length; ++i) {</span>
+<span class="nc bnc" id="L2244" title="All 2 branches missed.">            if (attrs[i].type.equals(type)) {</span>
+<span class="nc" id="L2245">                return attrs[i].read(this, off, len, buf, codeOff, labels);</span>
+            }
+        }
+<span class="nc" id="L2248">        return new Attribute(type).read(this, off, len, null, -1, null);</span>
+    }
+
+    // ------------------------------------------------------------------------
+    // Utility methods: low level parsing
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the number of constant pool items in {@link #b b}.
+     *
+     * @return the number of constant pool items in {@link #b b}.
+     */
+    public int getItemCount() {
+<span class="nc" id="L2261">        return items.length;</span>
+    }
+
+    /**
+     * Returns the start index of the constant pool item in {@link #b b}, plus
+     * one. &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param item
+     *            the index a constant pool item.
+     * @return the start index of the constant pool item in {@link #b b}, plus
+     *         one.
+     */
+    public int getItem(final int item) {
+<span class="nc" id="L2275">        return items[item];</span>
+    }
+
+    /**
+     * Returns the maximum length of the strings contained in the constant pool
+     * of the class.
+     *
+     * @return the maximum length of the strings contained in the constant pool
+     *         of the class.
+     */
+    public int getMaxStringLength() {
+<span class="nc" id="L2286">        return maxStringLength;</span>
+    }
+
+    /**
+     * Reads a byte value in {@link #b b}. &lt;i&gt;This method is intended for
+     * {@link Attribute} sub classes, and is normally not needed by class
+     * generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of the value to be read in {@link #b b}.
+     * @return the read value.
+     */
+    public int readByte(final int index) {
+<span class="nc" id="L2299">        return b[index] &amp; 0xFF;</span>
+    }
+
+    /**
+     * Reads an unsigned short value in {@link #b b}. &lt;i&gt;This method is intended
+     * for {@link Attribute} sub classes, and is normally not needed by class
+     * generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of the value to be read in {@link #b b}.
+     * @return the read value.
+     */
+    public int readUnsignedShort(final int index) {
+<span class="nc" id="L2312">        byte[] b = this.b;</span>
+<span class="nc" id="L2313">        return ((b[index] &amp; 0xFF) &lt;&lt; 8) | (b[index + 1] &amp; 0xFF);</span>
+    }
+
+    /**
+     * Reads a signed short value in {@link #b b}. &lt;i&gt;This method is intended
+     * for {@link Attribute} sub classes, and is normally not needed by class
+     * generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of the value to be read in {@link #b b}.
+     * @return the read value.
+     */
+    public short readShort(final int index) {
+<span class="nc" id="L2326">        byte[] b = this.b;</span>
+<span class="nc" id="L2327">        return (short) (((b[index] &amp; 0xFF) &lt;&lt; 8) | (b[index + 1] &amp; 0xFF));</span>
+    }
+
+    /**
+     * Reads a signed int value in {@link #b b}. &lt;i&gt;This method is intended for
+     * {@link Attribute} sub classes, and is normally not needed by class
+     * generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of the value to be read in {@link #b b}.
+     * @return the read value.
+     */
+    public int readInt(final int index) {
+<span class="nc" id="L2340">        byte[] b = this.b;</span>
+<span class="nc" id="L2341">        return ((b[index] &amp; 0xFF) &lt;&lt; 24) | ((b[index + 1] &amp; 0xFF) &lt;&lt; 16)</span>
+                | ((b[index + 2] &amp; 0xFF) &lt;&lt; 8) | (b[index + 3] &amp; 0xFF);
+    }
+
+    /**
+     * Reads a signed long value in {@link #b b}. &lt;i&gt;This method is intended for
+     * {@link Attribute} sub classes, and is normally not needed by class
+     * generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of the value to be read in {@link #b b}.
+     * @return the read value.
+     */
+    public long readLong(final int index) {
+<span class="nc" id="L2355">        long l1 = readInt(index);</span>
+<span class="nc" id="L2356">        long l0 = readInt(index + 4) &amp; 0xFFFFFFFFL;</span>
+<span class="nc" id="L2357">        return (l1 &lt;&lt; 32) | l0;</span>
+    }
+
+    /**
+     * Reads an UTF8 string constant pool item in {@link #b b}. &lt;i&gt;This method
+     * is intended for {@link Attribute} sub classes, and is normally not needed
+     * by class generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of an unsigned short value in {@link #b b},
+     *            whose value is the index of an UTF8 constant pool item.
+     * @param buf
+     *            buffer to be used to read the item. This buffer must be
+     *            sufficiently large. It is not automatically resized.
+     * @return the String corresponding to the specified UTF8 item.
+     */
+    public String readUTF8(int index, final char[] buf) {
+<span class="nc" id="L2374">        int item = readUnsignedShort(index);</span>
+<span class="nc bnc" id="L2375" title="All 4 branches missed.">        if (index == 0 || item == 0) {</span>
+<span class="nc" id="L2376">            return null;</span>
+        }
+<span class="nc" id="L2378">        String s = strings[item];</span>
+<span class="nc bnc" id="L2379" title="All 2 branches missed.">        if (s != null) {</span>
+<span class="nc" id="L2380">            return s;</span>
+        }
+<span class="nc" id="L2382">        index = items[item];</span>
+<span class="nc" id="L2383">        return strings[item] = readUTF(index + 2, readUnsignedShort(index), buf);</span>
+    }
+
+    /**
+     * Reads UTF8 string in {@link #b b}.
+     *
+     * @param index
+     *            start offset of the UTF8 string to be read.
+     * @param utfLen
+     *            length of the UTF8 string to be read.
+     * @param buf
+     *            buffer to be used to read the string. This buffer must be
+     *            sufficiently large. It is not automatically resized.
+     * @return the String corresponding to the specified UTF8 string.
+     */
+    private String readUTF(int index, final int utfLen, final char[] buf) {
+<span class="nc" id="L2399">        int endIndex = index + utfLen;</span>
+<span class="nc" id="L2400">        byte[] b = this.b;</span>
+<span class="nc" id="L2401">        int strLen = 0;</span>
+        int c;
+<span class="nc" id="L2403">        int st = 0;</span>
+<span class="nc" id="L2404">        char cc = 0;</span>
+<span class="nc bnc" id="L2405" title="All 2 branches missed.">        while (index &lt; endIndex) {</span>
+<span class="nc" id="L2406">            c = b[index++];</span>
+<span class="nc bnc" id="L2407" title="All 4 branches missed.">            switch (st) {</span>
+            case 0:
+<span class="nc" id="L2409">                c = c &amp; 0xFF;</span>
+<span class="nc bnc" id="L2410" title="All 2 branches missed.">                if (c &lt; 0x80) { // 0xxxxxxx</span>
+<span class="nc" id="L2411">                    buf[strLen++] = (char) c;</span>
+<span class="nc bnc" id="L2412" title="All 4 branches missed.">                } else if (c &lt; 0xE0 &amp;&amp; c &gt; 0xBF) { // 110x xxxx 10xx xxxx</span>
+<span class="nc" id="L2413">                    cc = (char) (c &amp; 0x1F);</span>
+<span class="nc" id="L2414">                    st = 1;</span>
+                } else { // 1110 xxxx 10xx xxxx 10xx xxxx
+<span class="nc" id="L2416">                    cc = (char) (c &amp; 0x0F);</span>
+<span class="nc" id="L2417">                    st = 2;</span>
+                }
+<span class="nc" id="L2419">                break;</span>
+
+            case 1: // byte 2 of 2-byte char or byte 3 of 3-byte char
+<span class="nc" id="L2422">                buf[strLen++] = (char) ((cc &lt;&lt; 6) | (c &amp; 0x3F));</span>
+<span class="nc" id="L2423">                st = 0;</span>
+<span class="nc" id="L2424">                break;</span>
+
+            case 2: // byte 2 of 3-byte char
+<span class="nc" id="L2427">                cc = (char) ((cc &lt;&lt; 6) | (c &amp; 0x3F));</span>
+<span class="nc" id="L2428">                st = 1;</span>
+<span class="nc" id="L2429">                break;</span>
+            }
+        }
+<span class="nc" id="L2432">        return new String(buf, 0, strLen);</span>
+    }
+
+    /**
+     * Reads a class constant pool item in {@link #b b}. &lt;i&gt;This method is
+     * intended for {@link Attribute} sub classes, and is normally not needed by
+     * class generators or adapters.&lt;/i&gt;
+     *
+     * @param index
+     *            the start index of an unsigned short value in {@link #b b},
+     *            whose value is the index of a class constant pool item.
+     * @param buf
+     *            buffer to be used to read the item. This buffer must be
+     *            sufficiently large. It is not automatically resized.
+     * @return the String corresponding to the specified class item.
+     */
+    public String readClass(final int index, final char[] buf) {
+        // computes the start index of the CONSTANT_Class item in b
+        // and reads the CONSTANT_Utf8 item designated by
+        // the first two bytes of this CONSTANT_Class item
+<span class="nc" id="L2452">        return readUTF8(items[readUnsignedShort(index)], buf);</span>
+    }
+
+    /**
+     * Reads a numeric or string constant pool item in {@link #b b}. &lt;i&gt;This
+     * method is intended for {@link Attribute} sub classes, and is normally not
+     * needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param item
+     *            the index of a constant pool item.
+     * @param buf
+     *            buffer to be used to read the item. This buffer must be
+     *            sufficiently large. It is not automatically resized.
+     * @return the {@link Integer}, {@link Float}, {@link Long}, {@link Double},
+     *         {@link String}, {@link Type} or {@link Handle} corresponding to
+     *         the given constant pool item.
+     */
+    public Object readConst(final int item, final char[] buf) {
+<span class="nc" id="L2470">        int index = items[item];</span>
+<span class="nc bnc" id="L2471" title="All 8 branches missed.">        switch (b[index - 1]) {</span>
+        case ClassWriter.INT:
+<span class="nc" id="L2473">            return new Integer(readInt(index));</span>
+        case ClassWriter.FLOAT:
+<span class="nc" id="L2475">            return new Float(Float.intBitsToFloat(readInt(index)));</span>
+        case ClassWriter.LONG:
+<span class="nc" id="L2477">            return new Long(readLong(index));</span>
+        case ClassWriter.DOUBLE:
+<span class="nc" id="L2479">            return new Double(Double.longBitsToDouble(readLong(index)));</span>
+        case ClassWriter.CLASS:
+<span class="nc" id="L2481">            return Type.getObjectType(readUTF8(index, buf));</span>
+        case ClassWriter.STR:
+<span class="nc" id="L2483">            return readUTF8(index, buf);</span>
+        case ClassWriter.MTYPE:
+<span class="nc" id="L2485">            return Type.getMethodType(readUTF8(index, buf));</span>
+        default: // case ClassWriter.HANDLE_BASE + [1..9]:
+<span class="nc" id="L2487">            int tag = readByte(index);</span>
+<span class="nc" id="L2488">            int[] items = this.items;</span>
+<span class="nc" id="L2489">            int cpIndex = items[readUnsignedShort(index + 1)];</span>
+<span class="nc" id="L2490">            String owner = readClass(cpIndex, buf);</span>
+<span class="nc" id="L2491">            cpIndex = items[readUnsignedShort(cpIndex + 2)];</span>
+<span class="nc" id="L2492">            String name = readUTF8(cpIndex, buf);</span>
+<span class="nc" id="L2493">            String desc = readUTF8(cpIndex + 2, buf);</span>
+<span class="nc" id="L2494">            return new Handle(tag, owner, name, desc);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZLCData.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.data</a> &gt; <span class="el_source">ZLCData.java</span></div><h1>ZLCData.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.data;
+
+import static java.lang.String.join;
+
+import java.net.URL;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import edu.illinois.starts.constants.StartsConstants;
+
+/**
+ * This class creates objects that represent one row in the .zlc file.
+ */
+public class ZLCData implements StartsConstants {
+    private URL url;
+    private String checksum;
+    private Set&lt;String&gt; tests;
+
+<span class="nc" id="L23">    public ZLCData(URL url, String checksum, Set&lt;String&gt; tests) {</span>
+<span class="nc" id="L24">        this.url = url;</span>
+<span class="nc" id="L25">        this.checksum = checksum;</span>
+<span class="nc" id="L26">        this.tests = tests;</span>
+<span class="nc" id="L27">    }</span>
+
+    @Override
+    public String toString() {
+        //we track dependencies that are not reached by any test because of *
+        String data;
+<span class="nc bnc" id="L33" title="All 2 branches missed.">        if (tests.isEmpty()) {</span>
+<span class="nc" id="L34">            data = join(WHITE_SPACE, url.toExternalForm(), checksum);</span>
+        } else {
+<span class="nc" id="L36">            data = join(WHITE_SPACE, url.toExternalForm(), checksum, toCSV(tests));</span>
+        }
+<span class="nc" id="L38">        return data;</span>
+    }
+
+    private String toCSV(Set&lt;String&gt; tests) {
+<span class="nc" id="L42">        return tests.stream().collect(Collectors.joining(COMMA));</span>
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (this == obj) {</span>
+<span class="nc" id="L48">            return true;</span>
+        }
+<span class="nc bnc" id="L50" title="All 4 branches missed.">        if (obj == null || getClass() != obj.getClass()) {</span>
+<span class="nc" id="L51">            return false;</span>
+        }
+
+<span class="nc" id="L54">        ZLCData zlcData = (ZLCData) obj;</span>
+
+<span class="nc bnc" id="L56" title="All 2 branches missed.">        if (!url.equals(zlcData.url)) {</span>
+<span class="nc" id="L57">            return false;</span>
+        }
+<span class="nc" id="L59">        return checksum.equals(zlcData.checksum);</span>
+    }
+
+    public void setTests(Set&lt;String&gt; tests) {
+<span class="nc" id="L63">        this.tests = tests;</span>
+<span class="nc" id="L64">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

@@ -1,0 +1,1778 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.asm</a> &gt; <span class="el_source">ClassWriter.java</span></div><h1>ClassWriter.java</h1><pre class="source lang-java linenums">/***
+ * ASM: a very small and fast Java bytecode manipulation framework
+ * Copyright (c) 2000-2011 INRIA, France Telecom
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holders nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.illinois.starts.asm;
+
+
+/**
+ * A {@link ClassVisitor} that generates classes in bytecode form. More
+ * precisely this visitor generates a byte array conforming to the Java class
+ * file format. It can be used alone, to generate a Java class &quot;from scratch&quot;,
+ * or with one or more {@link ClassReader ClassReader} and adapter class visitor
+ * to generate a modified class from one or more existing Java classes.
+ *
+ * @author Eric Bruneton
+ */
+public class ClassWriter extends ClassVisitor {
+
+    /**
+     * Flag to automatically compute the maximum stack size and the maximum
+     * number of local variables of methods. If this flag is set, then the
+     * arguments of the {@link MethodVisitor#visitMaxs visitMaxs} method of the
+     * {@link MethodVisitor} returned by the {@link #visitMethod visitMethod}
+     * method will be ignored, and computed automatically from the signature and
+     * the bytecode of each method.
+     *
+     * @see #ClassWriter(int)
+     */
+    public static final int COMPUTE_MAXS = 1;
+
+    /**
+     * Flag to automatically compute the stack map frames of methods from
+     * scratch. If this flag is set, then the calls to the
+     * {@link MethodVisitor#visitFrame} method are ignored, and the stack map
+     * frames are recomputed from the methods bytecode. The arguments of the
+     * {@link MethodVisitor#visitMaxs visitMaxs} method are also ignored and
+     * recomputed from the bytecode. In other words, computeFrames implies
+     * computeMaxs.
+     *
+     * @see #ClassWriter(int)
+     */
+    public static final int COMPUTE_FRAMES = 2;
+
+    /**
+     * Pseudo access flag to distinguish between the synthetic attribute and the
+     * synthetic access flag.
+     */
+    static final int ACC_SYNTHETIC_ATTRIBUTE = 0x40000;
+
+    /**
+     * Factor to convert from ACC_SYNTHETIC_ATTRIBUTE to Opcode.ACC_SYNTHETIC.
+     */
+    static final int TO_ACC_SYNTHETIC = ACC_SYNTHETIC_ATTRIBUTE
+            / Opcodes.ACC_SYNTHETIC;
+
+    /**
+     * The type of instructions without any argument.
+     */
+    static final int NOARG_INSN = 0;
+
+    /**
+     * The type of instructions with an signed byte argument.
+     */
+    static final int SBYTE_INSN = 1;
+
+    /**
+     * The type of instructions with an signed short argument.
+     */
+    static final int SHORT_INSN = 2;
+
+    /**
+     * The type of instructions with a local variable index argument.
+     */
+    static final int VAR_INSN = 3;
+
+    /**
+     * The type of instructions with an implicit local variable index argument.
+     */
+    static final int IMPLVAR_INSN = 4;
+
+    /**
+     * The type of instructions with a type descriptor argument.
+     */
+    static final int TYPE_INSN = 5;
+
+    /**
+     * The type of field and method invocations instructions.
+     */
+    static final int FIELDORMETH_INSN = 6;
+
+    /**
+     * The type of the INVOKEINTERFACE/INVOKEDYNAMIC instruction.
+     */
+    static final int ITFMETH_INSN = 7;
+
+    /**
+     * The type of the INVOKEDYNAMIC instruction.
+     */
+    static final int INDYMETH_INSN = 8;
+
+    /**
+     * The type of instructions with a 2 bytes bytecode offset label.
+     */
+    static final int LABEL_INSN = 9;
+
+    /**
+     * The type of instructions with a 4 bytes bytecode offset label.
+     */
+    static final int LABELW_INSN = 10;
+
+    /**
+     * The type of the LDC instruction.
+     */
+    static final int LDC_INSN = 11;
+
+    /**
+     * The type of the LDC_W and LDC2_W instructions.
+     */
+    static final int LDCW_INSN = 12;
+
+    /**
+     * The type of the IINC instruction.
+     */
+    static final int IINC_INSN = 13;
+
+    /**
+     * The type of the TABLESWITCH instruction.
+     */
+    static final int TABL_INSN = 14;
+
+    /**
+     * The type of the LOOKUPSWITCH instruction.
+     */
+    static final int LOOK_INSN = 15;
+
+    /**
+     * The type of the MULTIANEWARRAY instruction.
+     */
+    static final int MANA_INSN = 16;
+
+    /**
+     * The type of the WIDE instruction.
+     */
+    static final int WIDE_INSN = 17;
+
+    /**
+     * The instruction types of all JVM opcodes.
+     */
+    static final byte[] TYPE;
+
+    /**
+     * The type of CONSTANT_Class constant pool items.
+     */
+    static final int CLASS = 7;
+
+    /**
+     * The type of CONSTANT_Fieldref constant pool items.
+     */
+    static final int FIELD = 9;
+
+    /**
+     * The type of CONSTANT_Methodref constant pool items.
+     */
+    static final int METH = 10;
+
+    /**
+     * The type of CONSTANT_InterfaceMethodref constant pool items.
+     */
+    static final int IMETH = 11;
+
+    /**
+     * The type of CONSTANT_String constant pool items.
+     */
+    static final int STR = 8;
+
+    /**
+     * The type of CONSTANT_Integer constant pool items.
+     */
+    static final int INT = 3;
+
+    /**
+     * The type of CONSTANT_Float constant pool items.
+     */
+    static final int FLOAT = 4;
+
+    /**
+     * The type of CONSTANT_Long constant pool items.
+     */
+    static final int LONG = 5;
+
+    /**
+     * The type of CONSTANT_Double constant pool items.
+     */
+    static final int DOUBLE = 6;
+
+    /**
+     * The type of CONSTANT_NameAndType constant pool items.
+     */
+    static final int NAME_TYPE = 12;
+
+    /**
+     * The type of CONSTANT_Utf8 constant pool items.
+     */
+    static final int UTF8 = 1;
+
+    /**
+     * The type of CONSTANT_MethodType constant pool items.
+     */
+    static final int MTYPE = 16;
+
+    /**
+     * The type of CONSTANT_MethodHandle constant pool items.
+     */
+    static final int HANDLE = 15;
+
+    /**
+     * The type of CONSTANT_InvokeDynamic constant pool items.
+     */
+    static final int INDY = 18;
+
+    /**
+     * The base value for all CONSTANT_MethodHandle constant pool items.
+     * Internally, ASM store the 9 variations of CONSTANT_MethodHandle into 9
+     * different items.
+     */
+    static final int HANDLE_BASE = 20;
+
+    /**
+     * Normal type Item stored in the ClassWriter {@link ClassWriter#typeTable},
+     * instead of the constant pool, in order to avoid clashes with normal
+     * constant pool items in the ClassWriter constant pool's hash table.
+     */
+    static final int TYPE_NORMAL = 30;
+
+    /**
+     * Uninitialized type Item stored in the ClassWriter
+     * {@link ClassWriter#typeTable}, instead of the constant pool, in order to
+     * avoid clashes with normal constant pool items in the ClassWriter constant
+     * pool's hash table.
+     */
+    static final int TYPE_UNINIT = 31;
+
+    /**
+     * Merged type Item stored in the ClassWriter {@link ClassWriter#typeTable},
+     * instead of the constant pool, in order to avoid clashes with normal
+     * constant pool items in the ClassWriter constant pool's hash table.
+     */
+    static final int TYPE_MERGED = 32;
+
+    /**
+     * The type of BootstrapMethods items. These items are stored in a special
+     * class attribute named BootstrapMethods and not in the constant pool.
+     */
+    static final int BSM = 33;
+
+    /**
+     * The class reader from which this class writer was constructed, if any.
+     */
+    ClassReader cr;
+
+    /**
+     * Minor and major version numbers of the class to be generated.
+     */
+    int version;
+
+    /**
+     * Index of the next item to be added in the constant pool.
+     */
+    int index;
+
+    /**
+     * The constant pool of this class.
+     */
+    final ByteVector pool;
+
+    /**
+     * The constant pool's hash table data.
+     */
+    Item[] items;
+
+    /**
+     * The threshold of the constant pool's hash table.
+     */
+    int threshold;
+
+    /**
+     * A reusable key used to look for items in the {@link #items} hash table.
+     */
+    final Item key;
+
+    /**
+     * A reusable key used to look for items in the {@link #items} hash table.
+     */
+    final Item key2;
+
+    /**
+     * A reusable key used to look for items in the {@link #items} hash table.
+     */
+    final Item key3;
+
+    /**
+     * A reusable key used to look for items in the {@link #items} hash table.
+     */
+    final Item key4;
+
+    /**
+     * A type table used to temporarily store internal names that will not
+     * necessarily be stored in the constant pool. This type table is used by
+     * the control flow and data flow analysis algorithm used to compute stack
+     * map frames from scratch. This array associates to each index &lt;tt&gt;i&lt;/tt&gt;
+     * the Item whose index is &lt;tt&gt;i&lt;/tt&gt;. All Item objects stored in this array
+     * are also stored in the {@link #items} hash table. These two arrays allow
+     * to retrieve an Item from its index or, conversely, to get the index of an
+     * Item from its value. Each Item stores an internal name in its
+     * {@link Item#strVal1} field.
+     */
+    Item[] typeTable;
+
+    /**
+     * Number of elements in the {@link #typeTable} array.
+     */
+    private short typeCount;
+
+    /**
+     * The access flags of this class.
+     */
+    private int access;
+
+    /**
+     * The constant pool item that contains the internal name of this class.
+     */
+    private int name;
+
+    /**
+     * The internal name of this class.
+     */
+    String thisName;
+
+    /**
+     * The constant pool item that contains the signature of this class.
+     */
+    private int signature;
+
+    /**
+     * The constant pool item that contains the internal name of the super class
+     * of this class.
+     */
+    private int superName;
+
+    /**
+     * Number of interfaces implemented or extended by this class or interface.
+     */
+    private int interfaceCount;
+
+    /**
+     * The interfaces implemented or extended by this class or interface. More
+     * precisely, this array contains the indexes of the constant pool items
+     * that contain the internal names of these interfaces.
+     */
+    private int[] interfaces;
+
+    /**
+     * The index of the constant pool item that contains the name of the source
+     * file from which this class was compiled.
+     */
+    private int sourceFile;
+
+    /**
+     * The SourceDebug attribute of this class.
+     */
+    private ByteVector sourceDebug;
+
+    /**
+     * The constant pool item that contains the name of the enclosing class of
+     * this class.
+     */
+    private int enclosingMethodOwner;
+
+    /**
+     * The constant pool item that contains the name and descriptor of the
+     * enclosing method of this class.
+     */
+    private int enclosingMethod;
+
+    /**
+     * The runtime visible annotations of this class.
+     */
+    private AnnotationWriter anns;
+
+    /**
+     * The runtime invisible annotations of this class.
+     */
+    private AnnotationWriter ianns;
+
+    /**
+     * The runtime visible type annotations of this class.
+     */
+    private AnnotationWriter tanns;
+
+    /**
+     * The runtime invisible type annotations of this class.
+     */
+    private AnnotationWriter itanns;
+
+    /**
+     * The non standard attributes of this class.
+     */
+    private Attribute attrs;
+
+    /**
+     * The number of entries in the InnerClasses attribute.
+     */
+    private int innerClassesCount;
+
+    /**
+     * The InnerClasses attribute.
+     */
+    private ByteVector innerClasses;
+
+    /**
+     * The number of entries in the BootstrapMethods attribute.
+     */
+    int bootstrapMethodsCount;
+
+    /**
+     * The BootstrapMethods attribute.
+     */
+    ByteVector bootstrapMethods;
+
+    /**
+     * The fields of this class. These fields are stored in a linked list of
+     * {@link FieldWriter} objects, linked to each other by their
+     * {@link FieldWriter#fv} field. This field stores the first element of this
+     * list.
+     */
+    FieldWriter firstField;
+
+    /**
+     * The fields of this class. These fields are stored in a linked list of
+     * {@link FieldWriter} objects, linked to each other by their
+     * {@link FieldWriter#fv} field. This field stores the last element of this
+     * list.
+     */
+    FieldWriter lastField;
+
+    /**
+     * The methods of this class. These methods are stored in a linked list of
+     * {@link MethodWriter} objects, linked to each other by their
+     * {@link MethodWriter#mv} field. This field stores the first element of
+     * this list.
+     */
+    MethodWriter firstMethod;
+
+    /**
+     * The methods of this class. These methods are stored in a linked list of
+     * {@link MethodWriter} objects, linked to each other by their
+     * {@link MethodWriter#mv} field. This field stores the last element of this
+     * list.
+     */
+    MethodWriter lastMethod;
+
+    /**
+     * &lt;tt&gt;true&lt;/tt&gt; if the maximum stack size and number of local variables
+     * must be automatically computed.
+     */
+    private boolean computeMaxs;
+
+    /**
+     * &lt;tt&gt;true&lt;/tt&gt; if the stack map frames must be recomputed from scratch.
+     */
+    private boolean computeFrames;
+
+    /**
+     * &lt;tt&gt;true&lt;/tt&gt; if the stack map tables of this class are invalid. The
+     * {@link MethodWriter#resizeInstructions} method cannot transform existing
+     * stack map tables, and so produces potentially invalid classes when it is
+     * executed. In this case the class is reread and rewritten with the
+     * {@link #COMPUTE_FRAMES} option (the resizeInstructions method can resize
+     * stack map tables when this option is used).
+     */
+    boolean invalidFrames;
+
+    // ------------------------------------------------------------------------
+    // Static initializer
+    // ------------------------------------------------------------------------
+
+    /**
+     * Computes the instruction types of JVM opcodes.
+     */
+    static {
+        int i;
+<span class="nc" id="L517">        byte[] b = new byte[220];</span>
+<span class="nc" id="L518">        String s = &quot;AAAAAAAAAAAAAAAABCLMMDDDDDEEEEEEEEEEEEEEEEEEEEAAAAAAAADD&quot;</span>
+                + &quot;DDDEEEEEEEEEEEEEEEEEEEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&quot;
+                + &quot;AAAAAAAAAAAAAAAAANAAAAAAAAAAAAAAAAAAAAJJJJJJJJJJJJJJJJDOPAA&quot;
+                + &quot;AAAAGGGGGGGHIFBFAAFFAARQJJKKJJJJJJJJJJJJJJJJJJ&quot;;
+<span class="nc bnc" id="L522" title="All 2 branches missed.">        for (i = 0; i &lt; b.length; ++i) {</span>
+<span class="nc" id="L523">            b[i] = (byte) (s.charAt(i) - 'A');</span>
+        }
+<span class="nc" id="L525">        TYPE = b;</span>
+
+        // code to generate the above string
+        //
+        // // SBYTE_INSN instructions
+        // b[Constants.NEWARRAY] = SBYTE_INSN;
+        // b[Constants.BIPUSH] = SBYTE_INSN;
+        //
+        // // SHORT_INSN instructions
+        // b[Constants.SIPUSH] = SHORT_INSN;
+        //
+        // // (IMPL)VAR_INSN instructions
+        // b[Constants.RET] = VAR_INSN;
+        // for (i = Constants.ILOAD; i &lt;= Constants.ALOAD; ++i) {
+        // b[i] = VAR_INSN;
+        // }
+        // for (i = Constants.ISTORE; i &lt;= Constants.ASTORE; ++i) {
+        // b[i] = VAR_INSN;
+        // }
+        // for (i = 26; i &lt;= 45; ++i) { // ILOAD_0 to ALOAD_3
+        // b[i] = IMPLVAR_INSN;
+        // }
+        // for (i = 59; i &lt;= 78; ++i) { // ISTORE_0 to ASTORE_3
+        // b[i] = IMPLVAR_INSN;
+        // }
+        //
+        // // TYPE_INSN instructions
+        // b[Constants.NEW] = TYPE_INSN;
+        // b[Constants.ANEWARRAY] = TYPE_INSN;
+        // b[Constants.CHECKCAST] = TYPE_INSN;
+        // b[Constants.INSTANCEOF] = TYPE_INSN;
+        //
+        // // (Set)FIELDORMETH_INSN instructions
+        // for (i = Constants.GETSTATIC; i &lt;= Constants.INVOKESTATIC; ++i) {
+        // b[i] = FIELDORMETH_INSN;
+        // }
+        // b[Constants.INVOKEINTERFACE] = ITFMETH_INSN;
+        // b[Constants.INVOKEDYNAMIC] = INDYMETH_INSN;
+        //
+        // // LABEL(W)_INSN instructions
+        // for (i = Constants.IFEQ; i &lt;= Constants.JSR; ++i) {
+        // b[i] = LABEL_INSN;
+        // }
+        // b[Constants.IFNULL] = LABEL_INSN;
+        // b[Constants.IFNONNULL] = LABEL_INSN;
+        // b[200] = LABELW_INSN; // GOTO_W
+        // b[201] = LABELW_INSN; // JSR_W
+        // // temporary opcodes used internally by ASM - see Label and
+        // MethodWriter
+        // for (i = 202; i &lt; 220; ++i) {
+        // b[i] = LABEL_INSN;
+        // }
+        //
+        // // LDC(_W) instructions
+        // b[Constants.LDC] = LDC_INSN;
+        // b[19] = LDCW_INSN; // LDC_W
+        // b[20] = LDCW_INSN; // LDC2_W
+        //
+        // // special instructions
+        // b[Constants.IINC] = IINC_INSN;
+        // b[Constants.TABLESWITCH] = TABL_INSN;
+        // b[Constants.LOOKUPSWITCH] = LOOK_INSN;
+        // b[Constants.MULTIANEWARRAY] = MANA_INSN;
+        // b[196] = WIDE_INSN; // WIDE
+        //
+        // for (i = 0; i &lt; b.length; ++i) {
+        // System.err.print((char)('A' + b[i]));
+        // }
+        // System.err.println();
+<span class="nc" id="L594">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Constructor
+    // ------------------------------------------------------------------------
+
+    /**
+     * Constructs a new {@link ClassWriter} object.
+     *
+     * @param flags
+     *            option flags that can be used to modify the default behavior
+     *            of this class. See {@link #COMPUTE_MAXS},
+     *            {@link #COMPUTE_FRAMES}.
+     */
+    public ClassWriter(final int flags) {
+<span class="nc" id="L609">        super(Opcodes.ASM5);</span>
+<span class="nc" id="L610">        index = 1;</span>
+<span class="nc" id="L611">        pool = new ByteVector();</span>
+<span class="nc" id="L612">        items = new Item[256];</span>
+<span class="nc" id="L613">        threshold = (int) (0.75d * items.length);</span>
+<span class="nc" id="L614">        key = new Item();</span>
+<span class="nc" id="L615">        key2 = new Item();</span>
+<span class="nc" id="L616">        key3 = new Item();</span>
+<span class="nc" id="L617">        key4 = new Item();</span>
+<span class="nc bnc" id="L618" title="All 2 branches missed.">        this.computeMaxs = (flags &amp; COMPUTE_MAXS) != 0;</span>
+<span class="nc bnc" id="L619" title="All 2 branches missed.">        this.computeFrames = (flags &amp; COMPUTE_FRAMES) != 0;</span>
+<span class="nc" id="L620">    }</span>
+
+    /**
+     * Constructs a new {@link ClassWriter} object and enables optimizations for
+     * &quot;mostly add&quot; bytecode transformations. These optimizations are the
+     * following:
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;The constant pool from the original class is copied as is in the new
+     * class, which saves time. New constant pool entries will be added at the
+     * end if necessary, but unused constant pool entries &lt;i&gt;won't be
+     * removed&lt;/i&gt;.&lt;/li&gt;
+     * &lt;li&gt;Methods that are not transformed are copied as is in the new class,
+     * directly from the original class bytecode (i.e. without emitting visit
+     * events for all the method instructions), which saves a &lt;i&gt;lot&lt;/i&gt; of
+     * time. Untransformed methods are detected by the fact that the
+     * {@link ClassReader} receives {@link MethodVisitor} objects that come from
+     * a {@link ClassWriter} (and not from any other {@link ClassVisitor}
+     * instance).&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param classReader
+     *            the {@link ClassReader} used to read the original class. It
+     *            will be used to copy the entire constant pool from the
+     *            original class and also to copy other fragments of original
+     *            bytecode where applicable.
+     * @param flags
+     *            option flags that can be used to modify the default behavior
+     *            of this class. &lt;i&gt;These option flags do not affect methods
+     *            that are copied as is in the new class. This means that the
+     *            maximum stack size nor the stack frames will be computed for
+     *            these methods&lt;/i&gt;. See {@link #COMPUTE_MAXS},
+     *            {@link #COMPUTE_FRAMES}.
+     */
+    public ClassWriter(final ClassReader classReader, final int flags) {
+<span class="nc" id="L655">        this(flags);</span>
+<span class="nc" id="L656">        classReader.copyPool(this);</span>
+<span class="nc" id="L657">        this.cr = classReader;</span>
+<span class="nc" id="L658">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Implementation of the ClassVisitor abstract class
+    // ------------------------------------------------------------------------
+
+    @Override
+    public final void visit(final int version, final int access,
+            final String name, final String signature, final String superName,
+            final String[] interfaces) {
+<span class="nc" id="L668">        this.version = version;</span>
+<span class="nc" id="L669">        this.access = access;</span>
+<span class="nc" id="L670">        this.name = newClass(name);</span>
+<span class="nc" id="L671">        thisName = name;</span>
+<span class="nc bnc" id="L672" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != null) {</span>
+<span class="nc" id="L673">            this.signature = newUTF8(signature);</span>
+        }
+<span class="nc bnc" id="L675" title="All 2 branches missed.">        this.superName = superName == null ? 0 : newClass(superName);</span>
+<span class="nc bnc" id="L676" title="All 4 branches missed.">        if (interfaces != null &amp;&amp; interfaces.length &gt; 0) {</span>
+<span class="nc" id="L677">            interfaceCount = interfaces.length;</span>
+<span class="nc" id="L678">            this.interfaces = new int[interfaceCount];</span>
+<span class="nc bnc" id="L679" title="All 2 branches missed.">            for (int i = 0; i &lt; interfaceCount; ++i) {</span>
+<span class="nc" id="L680">                this.interfaces[i] = newClass(interfaces[i]);</span>
+            }
+        }
+<span class="nc" id="L683">    }</span>
+
+    @Override
+    public final void visitSource(final String file, final String debug) {
+<span class="nc bnc" id="L687" title="All 2 branches missed.">        if (file != null) {</span>
+<span class="nc" id="L688">            sourceFile = newUTF8(file);</span>
+        }
+<span class="nc bnc" id="L690" title="All 2 branches missed.">        if (debug != null) {</span>
+<span class="nc" id="L691">            sourceDebug = new ByteVector().encodeUTF8(debug, 0,</span>
+                    Integer.MAX_VALUE);
+        }
+<span class="nc" id="L694">    }</span>
+
+    @Override
+    public final void visitOuterClass(final String owner, final String name,
+            final String desc) {
+<span class="nc" id="L699">        enclosingMethodOwner = newClass(owner);</span>
+<span class="nc bnc" id="L700" title="All 4 branches missed.">        if (name != null &amp;&amp; desc != null) {</span>
+<span class="nc" id="L701">            enclosingMethod = newNameType(name, desc);</span>
+        }
+<span class="nc" id="L703">    }</span>
+
+    @Override
+    public final AnnotationVisitor visitAnnotation(final String desc,
+                                                   final boolean visible) {
+        if (!ClassReader.ANNOTATIONS) {
+            return null;
+        }
+<span class="nc" id="L711">        ByteVector bv = new ByteVector();</span>
+        // write type, and reserve space for values count
+<span class="nc" id="L713">        bv.putShort(newUTF8(desc)).putShort(0);</span>
+<span class="nc" id="L714">        AnnotationWriter aw = new AnnotationWriter(this, true, bv, bv, 2);</span>
+<span class="nc bnc" id="L715" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L716">            aw.next = anns;</span>
+<span class="nc" id="L717">            anns = aw;</span>
+        } else {
+<span class="nc" id="L719">            aw.next = ianns;</span>
+<span class="nc" id="L720">            ianns = aw;</span>
+        }
+<span class="nc" id="L722">        return aw;</span>
+    }
+
+    @Override
+    public final AnnotationVisitor visitTypeAnnotation(int typeRef,
+                                                       TypePath typePath, final String desc, final boolean visible) {
+        if (!ClassReader.ANNOTATIONS) {
+            return null;
+        }
+<span class="nc" id="L731">        ByteVector bv = new ByteVector();</span>
+        // write target_type and target_info
+<span class="nc" id="L733">        AnnotationWriter.putTarget(typeRef, typePath, bv);</span>
+        // write type, and reserve space for values count
+<span class="nc" id="L735">        bv.putShort(newUTF8(desc)).putShort(0);</span>
+<span class="nc" id="L736">        AnnotationWriter aw = new AnnotationWriter(this, true, bv, bv,</span>
+                bv.length - 2);
+<span class="nc bnc" id="L738" title="All 2 branches missed.">        if (visible) {</span>
+<span class="nc" id="L739">            aw.next = tanns;</span>
+<span class="nc" id="L740">            tanns = aw;</span>
+        } else {
+<span class="nc" id="L742">            aw.next = itanns;</span>
+<span class="nc" id="L743">            itanns = aw;</span>
+        }
+<span class="nc" id="L745">        return aw;</span>
+    }
+
+    @Override
+    public final void visitAttribute(final Attribute attr) {
+<span class="nc" id="L750">        attr.next = attrs;</span>
+<span class="nc" id="L751">        attrs = attr;</span>
+<span class="nc" id="L752">    }</span>
+
+    @Override
+    public final void visitInnerClass(final String name,
+            final String outerName, final String innerName, final int access) {
+<span class="nc bnc" id="L757" title="All 2 branches missed.">        if (innerClasses == null) {</span>
+<span class="nc" id="L758">            innerClasses = new ByteVector();</span>
+        }
+        // Sec. 4.7.6 of the JVMS states &quot;Every CONSTANT_Class_info entry in the
+        // constant_pool table which represents a class or interface C that is
+        // not a package member must have exactly one corresponding entry in the
+        // classes array&quot;. To avoid duplicates we keep track in the intVal field
+        // of the Item of each CONSTANT_Class_info entry C whether an inner
+        // class entry has already been added for C (this field is unused for
+        // class entries, and changing its value does not change the hashcode
+        // and equality tests). If so we store the index of this inner class
+        // entry (plus one) in intVal. This hack allows duplicate detection in
+        // O(1) time.
+<span class="nc" id="L770">        Item nameItem = newClassItem(name);</span>
+<span class="nc bnc" id="L771" title="All 2 branches missed.">        if (nameItem.intVal == 0) {</span>
+<span class="nc" id="L772">            ++innerClassesCount;</span>
+<span class="nc" id="L773">            innerClasses.putShort(nameItem.index);</span>
+<span class="nc bnc" id="L774" title="All 2 branches missed.">            innerClasses.putShort(outerName == null ? 0 : newClass(outerName));</span>
+<span class="nc bnc" id="L775" title="All 2 branches missed.">            innerClasses.putShort(innerName == null ? 0 : newUTF8(innerName));</span>
+<span class="nc" id="L776">            innerClasses.putShort(access);</span>
+<span class="nc" id="L777">            nameItem.intVal = innerClassesCount;</span>
+        } else {
+            // Compare the inner classes entry nameItem.intVal - 1 with the
+            // arguments of this method and throw an exception if there is a
+            // difference?
+        }
+<span class="nc" id="L783">    }</span>
+
+    @Override
+    public final FieldVisitor visitField(final int access, final String name,
+                                         final String desc, final String signature, final Object value) {
+<span class="nc" id="L788">        return new FieldWriter(this, access, name, desc, signature, value);</span>
+    }
+
+    @Override
+    public final MethodVisitor visitMethod(final int access, final String name,
+                                           final String desc, final String signature, final String[] exceptions) {
+<span class="nc" id="L794">        return new MethodWriter(this, access, name, desc, signature,</span>
+                exceptions, computeMaxs, computeFrames);
+    }
+
+    @Override
+    public final void visitEnd() {
+<span class="nc" id="L800">    }</span>
+
+    // ------------------------------------------------------------------------
+    // Other public methods
+    // ------------------------------------------------------------------------
+
+    /**
+     * Returns the bytecode of the class that was build with this class writer.
+     *
+     * @return the bytecode of the class that was build with this class writer.
+     */
+    public byte[] toByteArray() {
+<span class="nc bnc" id="L812" title="All 2 branches missed.">        if (index &gt; 0xFFFF) {</span>
+<span class="nc" id="L813">            throw new RuntimeException(&quot;Class file too large!&quot;);</span>
+        }
+        // computes the real size of the bytecode of this class
+<span class="nc" id="L816">        int size = 24 + 2 * interfaceCount;</span>
+<span class="nc" id="L817">        int nbFields = 0;</span>
+<span class="nc" id="L818">        FieldWriter fb = firstField;</span>
+<span class="nc bnc" id="L819" title="All 2 branches missed.">        while (fb != null) {</span>
+<span class="nc" id="L820">            ++nbFields;</span>
+<span class="nc" id="L821">            size += fb.getSize();</span>
+<span class="nc" id="L822">            fb = (FieldWriter) fb.fv;</span>
+        }
+<span class="nc" id="L824">        int nbMethods = 0;</span>
+<span class="nc" id="L825">        MethodWriter mb = firstMethod;</span>
+<span class="nc bnc" id="L826" title="All 2 branches missed.">        while (mb != null) {</span>
+<span class="nc" id="L827">            ++nbMethods;</span>
+<span class="nc" id="L828">            size += mb.getSize();</span>
+<span class="nc" id="L829">            mb = (MethodWriter) mb.mv;</span>
+        }
+<span class="nc" id="L831">        int attributeCount = 0;</span>
+<span class="nc bnc" id="L832" title="All 2 branches missed.">        if (bootstrapMethods != null) {</span>
+            // we put it as first attribute in order to improve a bit
+            // ClassReader.copyBootstrapMethods
+<span class="nc" id="L835">            ++attributeCount;</span>
+<span class="nc" id="L836">            size += 8 + bootstrapMethods.length;</span>
+<span class="nc" id="L837">            newUTF8(&quot;BootstrapMethods&quot;);</span>
+        }
+<span class="nc bnc" id="L839" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != 0) {</span>
+<span class="nc" id="L840">            ++attributeCount;</span>
+<span class="nc" id="L841">            size += 8;</span>
+<span class="nc" id="L842">            newUTF8(&quot;Signature&quot;);</span>
+        }
+<span class="nc bnc" id="L844" title="All 2 branches missed.">        if (sourceFile != 0) {</span>
+<span class="nc" id="L845">            ++attributeCount;</span>
+<span class="nc" id="L846">            size += 8;</span>
+<span class="nc" id="L847">            newUTF8(&quot;SourceFile&quot;);</span>
+        }
+<span class="nc bnc" id="L849" title="All 2 branches missed.">        if (sourceDebug != null) {</span>
+<span class="nc" id="L850">            ++attributeCount;</span>
+<span class="nc" id="L851">            size += sourceDebug.length + 6;</span>
+<span class="nc" id="L852">            newUTF8(&quot;SourceDebugExtension&quot;);</span>
+        }
+<span class="nc bnc" id="L854" title="All 2 branches missed.">        if (enclosingMethodOwner != 0) {</span>
+<span class="nc" id="L855">            ++attributeCount;</span>
+<span class="nc" id="L856">            size += 10;</span>
+<span class="nc" id="L857">            newUTF8(&quot;EnclosingMethod&quot;);</span>
+        }
+<span class="nc bnc" id="L859" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_DEPRECATED) != 0) {</span>
+<span class="nc" id="L860">            ++attributeCount;</span>
+<span class="nc" id="L861">            size += 6;</span>
+<span class="nc" id="L862">            newUTF8(&quot;Deprecated&quot;);</span>
+        }
+<span class="nc bnc" id="L864" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_SYNTHETIC) != 0) {</span>
+<span class="nc bnc" id="L865" title="All 4 branches missed.">            if ((version &amp; 0xFFFF) &lt; Opcodes.V1_5</span>
+                    || (access &amp; ACC_SYNTHETIC_ATTRIBUTE) != 0) {
+<span class="nc" id="L867">                ++attributeCount;</span>
+<span class="nc" id="L868">                size += 6;</span>
+<span class="nc" id="L869">                newUTF8(&quot;Synthetic&quot;);</span>
+            }
+        }
+<span class="nc bnc" id="L872" title="All 2 branches missed.">        if (innerClasses != null) {</span>
+<span class="nc" id="L873">            ++attributeCount;</span>
+<span class="nc" id="L874">            size += 8 + innerClasses.length;</span>
+<span class="nc" id="L875">            newUTF8(&quot;InnerClasses&quot;);</span>
+        }
+<span class="nc bnc" id="L877" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; anns != null) {</span>
+<span class="nc" id="L878">            ++attributeCount;</span>
+<span class="nc" id="L879">            size += 8 + anns.getSize();</span>
+<span class="nc" id="L880">            newUTF8(&quot;RuntimeVisibleAnnotations&quot;);</span>
+        }
+<span class="nc bnc" id="L882" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; ianns != null) {</span>
+<span class="nc" id="L883">            ++attributeCount;</span>
+<span class="nc" id="L884">            size += 8 + ianns.getSize();</span>
+<span class="nc" id="L885">            newUTF8(&quot;RuntimeInvisibleAnnotations&quot;);</span>
+        }
+<span class="nc bnc" id="L887" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; tanns != null) {</span>
+<span class="nc" id="L888">            ++attributeCount;</span>
+<span class="nc" id="L889">            size += 8 + tanns.getSize();</span>
+<span class="nc" id="L890">            newUTF8(&quot;RuntimeVisibleTypeAnnotations&quot;);</span>
+        }
+<span class="nc bnc" id="L892" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; itanns != null) {</span>
+<span class="nc" id="L893">            ++attributeCount;</span>
+<span class="nc" id="L894">            size += 8 + itanns.getSize();</span>
+<span class="nc" id="L895">            newUTF8(&quot;RuntimeInvisibleTypeAnnotations&quot;);</span>
+        }
+<span class="nc bnc" id="L897" title="All 2 branches missed.">        if (attrs != null) {</span>
+<span class="nc" id="L898">            attributeCount += attrs.getCount();</span>
+<span class="nc" id="L899">            size += attrs.getSize(this, null, 0, -1, -1);</span>
+        }
+<span class="nc" id="L901">        size += pool.length;</span>
+        // allocates a byte vector of this size, in order to avoid unnecessary
+        // arraycopy operations in the ByteVector.enlarge() method
+<span class="nc" id="L904">        ByteVector out = new ByteVector(size);</span>
+<span class="nc" id="L905">        out.putInt(0xCAFEBABE).putInt(version);</span>
+<span class="nc" id="L906">        out.putShort(index).putByteArray(pool.data, 0, pool.length);</span>
+<span class="nc" id="L907">        int mask = Opcodes.ACC_DEPRECATED | ACC_SYNTHETIC_ATTRIBUTE</span>
+                | ((access &amp; ACC_SYNTHETIC_ATTRIBUTE) / TO_ACC_SYNTHETIC);
+<span class="nc" id="L909">        out.putShort(access &amp; ~mask).putShort(name).putShort(superName);</span>
+<span class="nc" id="L910">        out.putShort(interfaceCount);</span>
+<span class="nc bnc" id="L911" title="All 2 branches missed.">        for (int i = 0; i &lt; interfaceCount; ++i) {</span>
+<span class="nc" id="L912">            out.putShort(interfaces[i]);</span>
+        }
+<span class="nc" id="L914">        out.putShort(nbFields);</span>
+<span class="nc" id="L915">        fb = firstField;</span>
+<span class="nc bnc" id="L916" title="All 2 branches missed.">        while (fb != null) {</span>
+<span class="nc" id="L917">            fb.put(out);</span>
+<span class="nc" id="L918">            fb = (FieldWriter) fb.fv;</span>
+        }
+<span class="nc" id="L920">        out.putShort(nbMethods);</span>
+<span class="nc" id="L921">        mb = firstMethod;</span>
+<span class="nc bnc" id="L922" title="All 2 branches missed.">        while (mb != null) {</span>
+<span class="nc" id="L923">            mb.put(out);</span>
+<span class="nc" id="L924">            mb = (MethodWriter) mb.mv;</span>
+        }
+<span class="nc" id="L926">        out.putShort(attributeCount);</span>
+<span class="nc bnc" id="L927" title="All 2 branches missed.">        if (bootstrapMethods != null) {</span>
+<span class="nc" id="L928">            out.putShort(newUTF8(&quot;BootstrapMethods&quot;));</span>
+<span class="nc" id="L929">            out.putInt(bootstrapMethods.length + 2).putShort(</span>
+                    bootstrapMethodsCount);
+<span class="nc" id="L931">            out.putByteArray(bootstrapMethods.data, 0, bootstrapMethods.length);</span>
+        }
+<span class="nc bnc" id="L933" title="All 2 branches missed.">        if (ClassReader.SIGNATURES &amp;&amp; signature != 0) {</span>
+<span class="nc" id="L934">            out.putShort(newUTF8(&quot;Signature&quot;)).putInt(2).putShort(signature);</span>
+        }
+<span class="nc bnc" id="L936" title="All 2 branches missed.">        if (sourceFile != 0) {</span>
+<span class="nc" id="L937">            out.putShort(newUTF8(&quot;SourceFile&quot;)).putInt(2).putShort(sourceFile);</span>
+        }
+<span class="nc bnc" id="L939" title="All 2 branches missed.">        if (sourceDebug != null) {</span>
+<span class="nc" id="L940">            int len = sourceDebug.length;</span>
+<span class="nc" id="L941">            out.putShort(newUTF8(&quot;SourceDebugExtension&quot;)).putInt(len);</span>
+<span class="nc" id="L942">            out.putByteArray(sourceDebug.data, 0, len);</span>
+        }
+<span class="nc bnc" id="L944" title="All 2 branches missed.">        if (enclosingMethodOwner != 0) {</span>
+<span class="nc" id="L945">            out.putShort(newUTF8(&quot;EnclosingMethod&quot;)).putInt(4);</span>
+<span class="nc" id="L946">            out.putShort(enclosingMethodOwner).putShort(enclosingMethod);</span>
+        }
+<span class="nc bnc" id="L948" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_DEPRECATED) != 0) {</span>
+<span class="nc" id="L949">            out.putShort(newUTF8(&quot;Deprecated&quot;)).putInt(0);</span>
+        }
+<span class="nc bnc" id="L951" title="All 2 branches missed.">        if ((access &amp; Opcodes.ACC_SYNTHETIC) != 0) {</span>
+<span class="nc bnc" id="L952" title="All 4 branches missed.">            if ((version &amp; 0xFFFF) &lt; Opcodes.V1_5</span>
+                    || (access &amp; ACC_SYNTHETIC_ATTRIBUTE) != 0) {
+<span class="nc" id="L954">                out.putShort(newUTF8(&quot;Synthetic&quot;)).putInt(0);</span>
+            }
+        }
+<span class="nc bnc" id="L957" title="All 2 branches missed.">        if (innerClasses != null) {</span>
+<span class="nc" id="L958">            out.putShort(newUTF8(&quot;InnerClasses&quot;));</span>
+<span class="nc" id="L959">            out.putInt(innerClasses.length + 2).putShort(innerClassesCount);</span>
+<span class="nc" id="L960">            out.putByteArray(innerClasses.data, 0, innerClasses.length);</span>
+        }
+<span class="nc bnc" id="L962" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; anns != null) {</span>
+<span class="nc" id="L963">            out.putShort(newUTF8(&quot;RuntimeVisibleAnnotations&quot;));</span>
+<span class="nc" id="L964">            anns.put(out);</span>
+        }
+<span class="nc bnc" id="L966" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; ianns != null) {</span>
+<span class="nc" id="L967">            out.putShort(newUTF8(&quot;RuntimeInvisibleAnnotations&quot;));</span>
+<span class="nc" id="L968">            ianns.put(out);</span>
+        }
+<span class="nc bnc" id="L970" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; tanns != null) {</span>
+<span class="nc" id="L971">            out.putShort(newUTF8(&quot;RuntimeVisibleTypeAnnotations&quot;));</span>
+<span class="nc" id="L972">            tanns.put(out);</span>
+        }
+<span class="nc bnc" id="L974" title="All 2 branches missed.">        if (ClassReader.ANNOTATIONS &amp;&amp; itanns != null) {</span>
+<span class="nc" id="L975">            out.putShort(newUTF8(&quot;RuntimeInvisibleTypeAnnotations&quot;));</span>
+<span class="nc" id="L976">            itanns.put(out);</span>
+        }
+<span class="nc bnc" id="L978" title="All 2 branches missed.">        if (attrs != null) {</span>
+<span class="nc" id="L979">            attrs.put(this, null, 0, -1, -1, out);</span>
+        }
+<span class="nc bnc" id="L981" title="All 2 branches missed.">        if (invalidFrames) {</span>
+<span class="nc" id="L982">            anns = null;</span>
+<span class="nc" id="L983">            ianns = null;</span>
+<span class="nc" id="L984">            attrs = null;</span>
+<span class="nc" id="L985">            innerClassesCount = 0;</span>
+<span class="nc" id="L986">            innerClasses = null;</span>
+<span class="nc" id="L987">            bootstrapMethodsCount = 0;</span>
+<span class="nc" id="L988">            bootstrapMethods = null;</span>
+<span class="nc" id="L989">            firstField = null;</span>
+<span class="nc" id="L990">            lastField = null;</span>
+<span class="nc" id="L991">            firstMethod = null;</span>
+<span class="nc" id="L992">            lastMethod = null;</span>
+<span class="nc" id="L993">            computeMaxs = false;</span>
+<span class="nc" id="L994">            computeFrames = true;</span>
+<span class="nc" id="L995">            invalidFrames = false;</span>
+<span class="nc" id="L996">            new ClassReader(out.data).accept(this, ClassReader.SKIP_FRAMES);</span>
+<span class="nc" id="L997">            return toByteArray();</span>
+        }
+<span class="nc" id="L999">        return out.data;</span>
+    }
+
+    // ------------------------------------------------------------------------
+    // Utility methods: constant pool management
+    // ------------------------------------------------------------------------
+
+    /**
+     * Adds a number or string constant to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     *
+     * @param cst
+     *            the value of the constant to be added to the constant pool.
+     *            This parameter must be an {@link Integer}, a {@link Float}, a
+     *            {@link Long}, a {@link Double}, a {@link String} or a
+     *            {@link Type}.
+     * @return a new or already existing constant item with the given value.
+     */
+    Item newConstItem(final Object cst) {
+<span class="nc bnc" id="L1018" title="All 2 branches missed.">        if (cst instanceof Integer) {</span>
+<span class="nc" id="L1019">            int val = ((Integer) cst).intValue();</span>
+<span class="nc" id="L1020">            return newInteger(val);</span>
+<span class="nc bnc" id="L1021" title="All 2 branches missed.">        } else if (cst instanceof Byte) {</span>
+<span class="nc" id="L1022">            int val = ((Byte) cst).intValue();</span>
+<span class="nc" id="L1023">            return newInteger(val);</span>
+<span class="nc bnc" id="L1024" title="All 2 branches missed.">        } else if (cst instanceof Character) {</span>
+<span class="nc" id="L1025">            int val = ((Character) cst).charValue();</span>
+<span class="nc" id="L1026">            return newInteger(val);</span>
+<span class="nc bnc" id="L1027" title="All 2 branches missed.">        } else if (cst instanceof Short) {</span>
+<span class="nc" id="L1028">            int val = ((Short) cst).intValue();</span>
+<span class="nc" id="L1029">            return newInteger(val);</span>
+<span class="nc bnc" id="L1030" title="All 2 branches missed.">        } else if (cst instanceof Boolean) {</span>
+<span class="nc bnc" id="L1031" title="All 2 branches missed.">            int val = ((Boolean) cst).booleanValue() ? 1 : 0;</span>
+<span class="nc" id="L1032">            return newInteger(val);</span>
+<span class="nc bnc" id="L1033" title="All 2 branches missed.">        } else if (cst instanceof Float) {</span>
+<span class="nc" id="L1034">            float val = ((Float) cst).floatValue();</span>
+<span class="nc" id="L1035">            return newFloat(val);</span>
+<span class="nc bnc" id="L1036" title="All 2 branches missed.">        } else if (cst instanceof Long) {</span>
+<span class="nc" id="L1037">            long val = ((Long) cst).longValue();</span>
+<span class="nc" id="L1038">            return newLong(val);</span>
+<span class="nc bnc" id="L1039" title="All 2 branches missed.">        } else if (cst instanceof Double) {</span>
+<span class="nc" id="L1040">            double val = ((Double) cst).doubleValue();</span>
+<span class="nc" id="L1041">            return newDouble(val);</span>
+<span class="nc bnc" id="L1042" title="All 2 branches missed.">        } else if (cst instanceof String) {</span>
+<span class="nc" id="L1043">            return newString((String) cst);</span>
+<span class="nc bnc" id="L1044" title="All 2 branches missed.">        } else if (cst instanceof Type) {</span>
+<span class="nc" id="L1045">            Type t = (Type) cst;</span>
+<span class="nc" id="L1046">            int s = t.getSort();</span>
+<span class="nc bnc" id="L1047" title="All 2 branches missed.">            if (s == Type.OBJECT) {</span>
+<span class="nc" id="L1048">                return newClassItem(t.getInternalName());</span>
+<span class="nc bnc" id="L1049" title="All 2 branches missed.">            } else if (s == Type.METHOD) {</span>
+<span class="nc" id="L1050">                return newMethodTypeItem(t.getDescriptor());</span>
+            } else { // s == primitive type or array
+<span class="nc" id="L1052">                return newClassItem(t.getDescriptor());</span>
+            }
+<span class="nc bnc" id="L1054" title="All 2 branches missed.">        } else if (cst instanceof Handle) {</span>
+<span class="nc" id="L1055">            Handle h = (Handle) cst;</span>
+<span class="nc" id="L1056">            return newHandleItem(h.tag, h.owner, h.name, h.desc);</span>
+        } else {
+<span class="nc" id="L1058">            throw new IllegalArgumentException(&quot;value &quot; + cst);</span>
+        }
+    }
+
+    /**
+     * Adds a number or string constant to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param cst
+     *            the value of the constant to be added to the constant pool.
+     *            This parameter must be an {@link Integer}, a {@link Float}, a
+     *            {@link Long}, a {@link Double} or a {@link String}.
+     * @return the index of a new or already existing constant item with the
+     *         given value.
+     */
+    public int newConst(final Object cst) {
+<span class="nc" id="L1076">        return newConstItem(cst).index;</span>
+    }
+
+    /**
+     * Adds an UTF8 string to the constant pool of the class being build. Does
+     * nothing if the constant pool already contains a similar item. &lt;i&gt;This
+     * method is intended for {@link Attribute} sub classes, and is normally not
+     * needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param value
+     *            the String value.
+     * @return the index of a new or already existing UTF8 item.
+     */
+    public int newUTF8(final String value) {
+<span class="nc" id="L1090">        key.set(UTF8, value, null, null);</span>
+<span class="nc" id="L1091">        Item result = get(key);</span>
+<span class="nc bnc" id="L1092" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1093">            pool.putByte(UTF8).putUTF8(value);</span>
+<span class="nc" id="L1094">            result = new Item(index++, key);</span>
+<span class="nc" id="L1095">            put(result);</span>
+        }
+<span class="nc" id="L1097">        return result.index;</span>
+    }
+
+    /**
+     * Adds a class reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param value
+     *            the internal name of the class.
+     * @return a new or already existing class reference item.
+     */
+    Item newClassItem(final String value) {
+<span class="nc" id="L1111">        key2.set(CLASS, value, null, null);</span>
+<span class="nc" id="L1112">        Item result = get(key2);</span>
+<span class="nc bnc" id="L1113" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1114">            pool.put12(CLASS, newUTF8(value));</span>
+<span class="nc" id="L1115">            result = new Item(index++, key2);</span>
+<span class="nc" id="L1116">            put(result);</span>
+        }
+<span class="nc" id="L1118">        return result;</span>
+    }
+
+    /**
+     * Adds a class reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param value
+     *            the internal name of the class.
+     * @return the index of a new or already existing class reference item.
+     */
+    public int newClass(final String value) {
+<span class="nc" id="L1132">        return newClassItem(value).index;</span>
+    }
+
+    /**
+     * Adds a method type reference to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param methodDesc
+     *            method descriptor of the method type.
+     * @return a new or already existing method type reference item.
+     */
+    Item newMethodTypeItem(final String methodDesc) {
+<span class="nc" id="L1146">        key2.set(MTYPE, methodDesc, null, null);</span>
+<span class="nc" id="L1147">        Item result = get(key2);</span>
+<span class="nc bnc" id="L1148" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1149">            pool.put12(MTYPE, newUTF8(methodDesc));</span>
+<span class="nc" id="L1150">            result = new Item(index++, key2);</span>
+<span class="nc" id="L1151">            put(result);</span>
+        }
+<span class="nc" id="L1153">        return result;</span>
+    }
+
+    /**
+     * Adds a method type reference to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param methodDesc
+     *            method descriptor of the method type.
+     * @return the index of a new or already existing method type reference
+     *         item.
+     */
+    public int newMethodType(final String methodDesc) {
+<span class="nc" id="L1168">        return newMethodTypeItem(methodDesc).index;</span>
+    }
+
+    /**
+     * Adds a handle to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item. &lt;i&gt;This method is
+     * intended for {@link Attribute} sub classes, and is normally not needed by
+     * class generators or adapters.&lt;/i&gt;
+     *
+     * @param tag
+     *            the kind of this handle. Must be {@link Opcodes#H_GETFIELD},
+     *            {@link Opcodes#H_GETSTATIC}, {@link Opcodes#H_PUTFIELD},
+     *            {@link Opcodes#H_PUTSTATIC}, {@link Opcodes#H_INVOKEVIRTUAL},
+     *            {@link Opcodes#H_INVOKESTATIC},
+     *            {@link Opcodes#H_INVOKESPECIAL},
+     *            {@link Opcodes#H_NEWINVOKESPECIAL} or
+     *            {@link Opcodes#H_INVOKEINTERFACE}.
+     * @param owner
+     *            the internal name of the field or method owner class.
+     * @param name
+     *            the name of the field or method.
+     * @param desc
+     *            the descriptor of the field or method.
+     * @return a new or an already existing method type reference item.
+     */
+    Item newHandleItem(final int tag, final String owner, final String name,
+                                       final String desc) {
+<span class="nc" id="L1195">        key4.set(HANDLE_BASE + tag, owner, name, desc);</span>
+<span class="nc" id="L1196">        Item result = get(key4);</span>
+<span class="nc bnc" id="L1197" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc bnc" id="L1198" title="All 2 branches missed.">            if (tag &lt;= Opcodes.H_PUTSTATIC) {</span>
+<span class="nc" id="L1199">                put112(HANDLE, tag, newField(owner, name, desc));</span>
+            } else {
+<span class="nc bnc" id="L1201" title="All 2 branches missed.">                put112(HANDLE,</span>
+                        tag,
+<span class="nc" id="L1203">                        newMethod(owner, name, desc,</span>
+                                tag == Opcodes.H_INVOKEINTERFACE));
+            }
+<span class="nc" id="L1206">            result = new Item(index++, key4);</span>
+<span class="nc" id="L1207">            put(result);</span>
+        }
+<span class="nc" id="L1209">        return result;</span>
+    }
+
+    /**
+     * Adds a handle to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item. &lt;i&gt;This method is
+     * intended for {@link Attribute} sub classes, and is normally not needed by
+     * class generators or adapters.&lt;/i&gt;
+     *
+     * @param tag
+     *            the kind of this handle. Must be {@link Opcodes#H_GETFIELD},
+     *            {@link Opcodes#H_GETSTATIC}, {@link Opcodes#H_PUTFIELD},
+     *            {@link Opcodes#H_PUTSTATIC}, {@link Opcodes#H_INVOKEVIRTUAL},
+     *            {@link Opcodes#H_INVOKESTATIC},
+     *            {@link Opcodes#H_INVOKESPECIAL},
+     *            {@link Opcodes#H_NEWINVOKESPECIAL} or
+     *            {@link Opcodes#H_INVOKEINTERFACE}.
+     * @param owner
+     *            the internal name of the field or method owner class.
+     * @param name
+     *            the name of the field or method.
+     * @param desc
+     *            the descriptor of the field or method.
+     * @return the index of a new or already existing method type reference
+     *         item.
+     */
+    public int newHandle(final int tag, final String owner, final String name,
+            final String desc) {
+<span class="nc" id="L1237">        return newHandleItem(tag, owner, name, desc).index;</span>
+    }
+
+    /**
+     * Adds an invokedynamic reference to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param name
+     *            name of the invoked method.
+     * @param desc
+     *            descriptor of the invoke method.
+     * @param bsm
+     *            the bootstrap method.
+     * @param bsmArgs
+     *            the bootstrap method constant arguments.
+     *
+     * @return a new or an already existing invokedynamic type reference item.
+     */
+    Item newInvokeDynamicItem(final String name, final String desc,
+                                              final Handle bsm, final Object... bsmArgs) {
+        // cache for performance
+<span class="nc" id="L1260">        ByteVector bootstrapMethods = this.bootstrapMethods;</span>
+<span class="nc bnc" id="L1261" title="All 2 branches missed.">        if (bootstrapMethods == null) {</span>
+<span class="nc" id="L1262">            bootstrapMethods = this.bootstrapMethods = new ByteVector();</span>
+        }
+
+<span class="nc" id="L1265">        int position = bootstrapMethods.length; // record current position</span>
+
+<span class="nc" id="L1267">        int hashCode = bsm.hashCode();</span>
+<span class="nc" id="L1268">        bootstrapMethods.putShort(newHandle(bsm.tag, bsm.owner, bsm.name,</span>
+                bsm.desc));
+
+<span class="nc" id="L1271">        int argsLength = bsmArgs.length;</span>
+<span class="nc" id="L1272">        bootstrapMethods.putShort(argsLength);</span>
+
+<span class="nc bnc" id="L1274" title="All 2 branches missed.">        for (int i = 0; i &lt; argsLength; i++) {</span>
+<span class="nc" id="L1275">            Object bsmArg = bsmArgs[i];</span>
+<span class="nc" id="L1276">            hashCode ^= bsmArg.hashCode();</span>
+<span class="nc" id="L1277">            bootstrapMethods.putShort(newConst(bsmArg));</span>
+        }
+
+<span class="nc" id="L1280">        byte[] data = bootstrapMethods.data;</span>
+<span class="nc" id="L1281">        int length = (1 + 1 + argsLength) &lt;&lt; 1; // (bsm + argCount + arguments)</span>
+<span class="nc" id="L1282">        hashCode &amp;= 0x7FFFFFFF;</span>
+<span class="nc" id="L1283">        Item result = items[hashCode % items.length];</span>
+<span class="nc bnc" id="L1284" title="All 2 branches missed.">        loop: while (result != null) {</span>
+<span class="nc bnc" id="L1285" title="All 4 branches missed.">            if (result.type != BSM || result.hashCode != hashCode) {</span>
+<span class="nc" id="L1286">                result = result.next;</span>
+<span class="nc" id="L1287">                continue;</span>
+            }
+
+            // because the data encode the size of the argument
+            // we don't need to test if these size are equals
+<span class="nc" id="L1292">            int resultPosition = result.intVal;</span>
+<span class="nc bnc" id="L1293" title="All 2 branches missed.">            for (int p = 0; p &lt; length; p++) {</span>
+<span class="nc bnc" id="L1294" title="All 2 branches missed.">                if (data[position + p] != data[resultPosition + p]) {</span>
+<span class="nc" id="L1295">                    result = result.next;</span>
+<span class="nc" id="L1296">                    continue loop;</span>
+                }
+            }
+<span class="nc" id="L1299">            break;</span>
+        }
+
+        int bootstrapMethodIndex;
+<span class="nc bnc" id="L1303" title="All 2 branches missed.">        if (result != null) {</span>
+<span class="nc" id="L1304">            bootstrapMethodIndex = result.index;</span>
+<span class="nc" id="L1305">            bootstrapMethods.length = position; // revert to old position</span>
+        } else {
+<span class="nc" id="L1307">            bootstrapMethodIndex = bootstrapMethodsCount++;</span>
+<span class="nc" id="L1308">            result = new Item(bootstrapMethodIndex);</span>
+<span class="nc" id="L1309">            result.set(position, hashCode);</span>
+<span class="nc" id="L1310">            put(result);</span>
+        }
+
+        // now, create the InvokeDynamic constant
+<span class="nc" id="L1314">        key3.set(name, desc, bootstrapMethodIndex);</span>
+<span class="nc" id="L1315">        result = get(key3);</span>
+<span class="nc bnc" id="L1316" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1317">            put122(INDY, bootstrapMethodIndex, newNameType(name, desc));</span>
+<span class="nc" id="L1318">            result = new Item(index++, key3);</span>
+<span class="nc" id="L1319">            put(result);</span>
+        }
+<span class="nc" id="L1321">        return result;</span>
+    }
+
+    /**
+     * Adds an invokedynamic reference to the constant pool of the class being
+     * build. Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param name
+     *            name of the invoked method.
+     * @param desc
+     *            descriptor of the invoke method.
+     * @param bsm
+     *            the bootstrap method.
+     * @param bsmArgs
+     *            the bootstrap method constant arguments.
+     *
+     * @return the index of a new or already existing invokedynamic reference
+     *         item.
+     */
+    public int newInvokeDynamic(final String name, final String desc,
+                                final Handle bsm, final Object... bsmArgs) {
+<span class="nc" id="L1344">        return newInvokeDynamicItem(name, desc, bsm, bsmArgs).index;</span>
+    }
+
+    /**
+     * Adds a field reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     *
+     * @param owner
+     *            the internal name of the field's owner class.
+     * @param name
+     *            the field's name.
+     * @param desc
+     *            the field's descriptor.
+     * @return a new or already existing field reference item.
+     */
+    Item newFieldItem(final String owner, final String name, final String desc) {
+<span class="nc" id="L1360">        key3.set(FIELD, owner, name, desc);</span>
+<span class="nc" id="L1361">        Item result = get(key3);</span>
+<span class="nc bnc" id="L1362" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1363">            put122(FIELD, newClass(owner), newNameType(name, desc));</span>
+<span class="nc" id="L1364">            result = new Item(index++, key3);</span>
+<span class="nc" id="L1365">            put(result);</span>
+        }
+<span class="nc" id="L1367">        return result;</span>
+    }
+
+    /**
+     * Adds a field reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param owner
+     *            the internal name of the field's owner class.
+     * @param name
+     *            the field's name.
+     * @param desc
+     *            the field's descriptor.
+     * @return the index of a new or already existing field reference item.
+     */
+    public int newField(final String owner, final String name, final String desc) {
+<span class="nc" id="L1385">        return newFieldItem(owner, name, desc).index;</span>
+    }
+
+    /**
+     * Adds a method reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     *
+     * @param owner
+     *            the internal name of the method's owner class.
+     * @param name
+     *            the method's name.
+     * @param desc
+     *            the method's descriptor.
+     * @param itf
+     *            &lt;tt&gt;true&lt;/tt&gt; if &lt;tt&gt;owner&lt;/tt&gt; is an interface.
+     * @return a new or already existing method reference item.
+     */
+    Item newMethodItem(final String owner, final String name,
+                                       final String desc, final boolean itf) {
+<span class="nc bnc" id="L1404" title="All 2 branches missed.">        int type = itf ? IMETH : METH;</span>
+<span class="nc" id="L1405">        key3.set(type, owner, name, desc);</span>
+<span class="nc" id="L1406">        Item result = get(key3);</span>
+<span class="nc bnc" id="L1407" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1408">            put122(type, newClass(owner), newNameType(name, desc));</span>
+<span class="nc" id="L1409">            result = new Item(index++, key3);</span>
+<span class="nc" id="L1410">            put(result);</span>
+        }
+<span class="nc" id="L1412">        return result;</span>
+    }
+
+    /**
+     * Adds a method reference to the constant pool of the class being build.
+     * Does nothing if the constant pool already contains a similar item.
+     * &lt;i&gt;This method is intended for {@link Attribute} sub classes, and is
+     * normally not needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param owner
+     *            the internal name of the method's owner class.
+     * @param name
+     *            the method's name.
+     * @param desc
+     *            the method's descriptor.
+     * @param itf
+     *            &lt;tt&gt;true&lt;/tt&gt; if &lt;tt&gt;owner&lt;/tt&gt; is an interface.
+     * @return the index of a new or already existing method reference item.
+     */
+    public int newMethod(final String owner, final String name,
+            final String desc, final boolean itf) {
+<span class="nc" id="L1433">        return newMethodItem(owner, name, desc, itf).index;</span>
+    }
+
+    /**
+     * Adds an integer to the constant pool of the class being build. Does
+     * nothing if the constant pool already contains a similar item.
+     *
+     * @param value
+     *            the int value.
+     * @return a new or already existing int item.
+     */
+    Item newInteger(final int value) {
+<span class="nc" id="L1445">        key.set(value);</span>
+<span class="nc" id="L1446">        Item result = get(key);</span>
+<span class="nc bnc" id="L1447" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1448">            pool.putByte(INT).putInt(value);</span>
+<span class="nc" id="L1449">            result = new Item(index++, key);</span>
+<span class="nc" id="L1450">            put(result);</span>
+        }
+<span class="nc" id="L1452">        return result;</span>
+    }
+
+    /**
+     * Adds a float to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item.
+     *
+     * @param value
+     *            the float value.
+     * @return a new or already existing float item.
+     */
+    Item newFloat(final float value) {
+<span class="nc" id="L1464">        key.set(value);</span>
+<span class="nc" id="L1465">        Item result = get(key);</span>
+<span class="nc bnc" id="L1466" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1467">            pool.putByte(FLOAT).putInt(key.intVal);</span>
+<span class="nc" id="L1468">            result = new Item(index++, key);</span>
+<span class="nc" id="L1469">            put(result);</span>
+        }
+<span class="nc" id="L1471">        return result;</span>
+    }
+
+    /**
+     * Adds a long to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item.
+     *
+     * @param value
+     *            the long value.
+     * @return a new or already existing long item.
+     */
+    Item newLong(final long value) {
+<span class="nc" id="L1483">        key.set(value);</span>
+<span class="nc" id="L1484">        Item result = get(key);</span>
+<span class="nc bnc" id="L1485" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1486">            pool.putByte(LONG).putLong(value);</span>
+<span class="nc" id="L1487">            result = new Item(index, key);</span>
+<span class="nc" id="L1488">            index += 2;</span>
+<span class="nc" id="L1489">            put(result);</span>
+        }
+<span class="nc" id="L1491">        return result;</span>
+    }
+
+    /**
+     * Adds a double to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item.
+     *
+     * @param value
+     *            the double value.
+     * @return a new or already existing double item.
+     */
+    Item newDouble(final double value) {
+<span class="nc" id="L1503">        key.set(value);</span>
+<span class="nc" id="L1504">        Item result = get(key);</span>
+<span class="nc bnc" id="L1505" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1506">            pool.putByte(DOUBLE).putLong(key.longVal);</span>
+<span class="nc" id="L1507">            result = new Item(index, key);</span>
+<span class="nc" id="L1508">            index += 2;</span>
+<span class="nc" id="L1509">            put(result);</span>
+        }
+<span class="nc" id="L1511">        return result;</span>
+    }
+
+    /**
+     * Adds a string to the constant pool of the class being build. Does nothing
+     * if the constant pool already contains a similar item.
+     *
+     * @param value
+     *            the String value.
+     * @return a new or already existing string item.
+     */
+    private Item newString(final String value) {
+<span class="nc" id="L1523">        key2.set(STR, value, null, null);</span>
+<span class="nc" id="L1524">        Item result = get(key2);</span>
+<span class="nc bnc" id="L1525" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1526">            pool.put12(STR, newUTF8(value));</span>
+<span class="nc" id="L1527">            result = new Item(index++, key2);</span>
+<span class="nc" id="L1528">            put(result);</span>
+        }
+<span class="nc" id="L1530">        return result;</span>
+    }
+
+    /**
+     * Adds a name and type to the constant pool of the class being build. Does
+     * nothing if the constant pool already contains a similar item. &lt;i&gt;This
+     * method is intended for {@link Attribute} sub classes, and is normally not
+     * needed by class generators or adapters.&lt;/i&gt;
+     *
+     * @param name
+     *            a name.
+     * @param desc
+     *            a type descriptor.
+     * @return the index of a new or already existing name and type item.
+     */
+    public int newNameType(final String name, final String desc) {
+<span class="nc" id="L1546">        return newNameTypeItem(name, desc).index;</span>
+    }
+
+    /**
+     * Adds a name and type to the constant pool of the class being build. Does
+     * nothing if the constant pool already contains a similar item.
+     *
+     * @param name
+     *            a name.
+     * @param desc
+     *            a type descriptor.
+     * @return a new or already existing name and type item.
+     */
+    Item newNameTypeItem(final String name, final String desc) {
+<span class="nc" id="L1560">        key2.set(NAME_TYPE, name, desc, null);</span>
+<span class="nc" id="L1561">        Item result = get(key2);</span>
+<span class="nc bnc" id="L1562" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1563">            put122(NAME_TYPE, newUTF8(name), newUTF8(desc));</span>
+<span class="nc" id="L1564">            result = new Item(index++, key2);</span>
+<span class="nc" id="L1565">            put(result);</span>
+        }
+<span class="nc" id="L1567">        return result;</span>
+    }
+
+    /**
+     * Adds the given internal name to {@link #typeTable} and returns its index.
+     * Does nothing if the type table already contains this internal name.
+     *
+     * @param type
+     *            the internal name to be added to the type table.
+     * @return the index of this internal name in the type table.
+     */
+    int addType(final String type) {
+<span class="nc" id="L1579">        key.set(TYPE_NORMAL, type, null, null);</span>
+<span class="nc" id="L1580">        Item result = get(key);</span>
+<span class="nc bnc" id="L1581" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1582">            result = addType(key);</span>
+        }
+<span class="nc" id="L1584">        return result.index;</span>
+    }
+
+    /**
+     * Adds the given &quot;uninitialized&quot; type to {@link #typeTable} and returns its
+     * index. This method is used for UNINITIALIZED types, made of an internal
+     * name and a bytecode offset.
+     *
+     * @param type
+     *            the internal name to be added to the type table.
+     * @param offset
+     *            the bytecode offset of the NEW instruction that created this
+     *            UNINITIALIZED type value.
+     * @return the index of this internal name in the type table.
+     */
+    int addUninitializedType(final String type, final int offset) {
+<span class="nc" id="L1600">        key.type = TYPE_UNINIT;</span>
+<span class="nc" id="L1601">        key.intVal = offset;</span>
+<span class="nc" id="L1602">        key.strVal1 = type;</span>
+<span class="nc" id="L1603">        key.hashCode = 0x7FFFFFFF &amp; (TYPE_UNINIT + type.hashCode() + offset);</span>
+<span class="nc" id="L1604">        Item result = get(key);</span>
+<span class="nc bnc" id="L1605" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1606">            result = addType(key);</span>
+        }
+<span class="nc" id="L1608">        return result.index;</span>
+    }
+
+    /**
+     * Adds the given Item to {@link #typeTable}.
+     *
+     * @param item
+     *            the value to be added to the type table.
+     * @return the added Item, which a new Item instance with the same value as
+     *         the given Item.
+     */
+    private Item addType(final Item item) {
+<span class="nc" id="L1620">        ++typeCount;</span>
+<span class="nc" id="L1621">        Item result = new Item(typeCount, key);</span>
+<span class="nc" id="L1622">        put(result);</span>
+<span class="nc bnc" id="L1623" title="All 2 branches missed.">        if (typeTable == null) {</span>
+<span class="nc" id="L1624">            typeTable = new Item[16];</span>
+        }
+<span class="nc bnc" id="L1626" title="All 2 branches missed.">        if (typeCount == typeTable.length) {</span>
+<span class="nc" id="L1627">            Item[] newTable = new Item[2 * typeTable.length];</span>
+<span class="nc" id="L1628">            System.arraycopy(typeTable, 0, newTable, 0, typeTable.length);</span>
+<span class="nc" id="L1629">            typeTable = newTable;</span>
+        }
+<span class="nc" id="L1631">        typeTable[typeCount] = result;</span>
+<span class="nc" id="L1632">        return result;</span>
+    }
+
+    /**
+     * Returns the index of the common super type of the two given types. This
+     * method calls {@link #getCommonSuperClass} and caches the result in the
+     * {@link #items} hash table to speedup future calls with the same
+     * parameters.
+     *
+     * @param type1
+     *            index of an internal name in {@link #typeTable}.
+     * @param type2
+     *            index of an internal name in {@link #typeTable}.
+     * @return the index of the common super type of the two given types.
+     */
+    int getMergedType(final int type1, final int type2) {
+<span class="nc" id="L1648">        key2.type = TYPE_MERGED;</span>
+<span class="nc" id="L1649">        key2.longVal = type1 | (((long) type2) &lt;&lt; 32);</span>
+<span class="nc" id="L1650">        key2.hashCode = 0x7FFFFFFF &amp; (TYPE_MERGED + type1 + type2);</span>
+<span class="nc" id="L1651">        Item result = get(key2);</span>
+<span class="nc bnc" id="L1652" title="All 2 branches missed.">        if (result == null) {</span>
+<span class="nc" id="L1653">            String t = typeTable[type1].strVal1;</span>
+<span class="nc" id="L1654">            String u = typeTable[type2].strVal1;</span>
+<span class="nc" id="L1655">            key2.intVal = addType(getCommonSuperClass(t, u));</span>
+<span class="nc" id="L1656">            result = new Item((short) 0, key2);</span>
+<span class="nc" id="L1657">            put(result);</span>
+        }
+<span class="nc" id="L1659">        return result.intVal;</span>
+    }
+
+    /**
+     * Returns the common super type of the two given types. The default
+     * implementation of this method &lt;i&gt;loads&lt;/i&gt; the two given classes and uses
+     * the java.lang.Class methods to find the common super class. It can be
+     * overridden to compute this common super type in other ways, in particular
+     * without actually loading any class, or to take into account the class
+     * that is currently being generated by this ClassWriter, which can of
+     * course not be loaded since it is under construction.
+     *
+     * @param type1
+     *            the internal name of a class.
+     * @param type2
+     *            the internal name of another class.
+     * @return the internal name of the common super class of the two given
+     *         classes.
+     */
+    protected String getCommonSuperClass(final String type1, final String type2) {
+        Class&lt;?&gt; c, d;
+<span class="nc" id="L1680">        ClassLoader classLoader = getClass().getClassLoader();</span>
+        try {
+<span class="nc" id="L1682">            c = Class.forName(type1.replace('/', '.'), false, classLoader);</span>
+<span class="nc" id="L1683">            d = Class.forName(type2.replace('/', '.'), false, classLoader);</span>
+<span class="nc" id="L1684">        } catch (Exception e) {</span>
+<span class="nc" id="L1685">            throw new RuntimeException(e.toString());</span>
+<span class="nc" id="L1686">        }</span>
+<span class="nc bnc" id="L1687" title="All 2 branches missed.">        if (c.isAssignableFrom(d)) {</span>
+<span class="nc" id="L1688">            return type1;</span>
+        }
+<span class="nc bnc" id="L1690" title="All 2 branches missed.">        if (d.isAssignableFrom(c)) {</span>
+<span class="nc" id="L1691">            return type2;</span>
+        }
+<span class="nc bnc" id="L1693" title="All 4 branches missed.">        if (c.isInterface() || d.isInterface()) {</span>
+<span class="nc" id="L1694">            return &quot;java/lang/Object&quot;;</span>
+        } else {
+            do {
+<span class="nc" id="L1697">                c = c.getSuperclass();</span>
+<span class="nc bnc" id="L1698" title="All 2 branches missed.">            } while (!c.isAssignableFrom(d));</span>
+<span class="nc" id="L1699">            return c.getName().replace('.', '/');</span>
+        }
+    }
+
+    /**
+     * Returns the constant pool's hash table item which is equal to the given
+     * item.
+     *
+     * @param key
+     *            a constant pool item.
+     * @return the constant pool's hash table item which is equal to the given
+     *         item, or &lt;tt&gt;null&lt;/tt&gt; if there is no such item.
+     */
+    private Item get(final Item key) {
+<span class="nc" id="L1713">        Item i = items[key.hashCode % items.length];</span>
+<span class="nc bnc" id="L1714" title="All 6 branches missed.">        while (i != null &amp;&amp; (i.type != key.type || !key.isEqualTo(i))) {</span>
+<span class="nc" id="L1715">            i = i.next;</span>
+        }
+<span class="nc" id="L1717">        return i;</span>
+    }
+
+    /**
+     * Puts the given item in the constant pool's hash table. The hash table
+     * &lt;i&gt;must&lt;/i&gt; not already contains this item.
+     *
+     * @param i
+     *            the item to be added to the constant pool's hash table.
+     */
+    private void put(final Item i) {
+<span class="nc bnc" id="L1728" title="All 2 branches missed.">        if (index + typeCount &gt; threshold) {</span>
+<span class="nc" id="L1729">            int ll = items.length;</span>
+<span class="nc" id="L1730">            int nl = ll * 2 + 1;</span>
+<span class="nc" id="L1731">            Item[] newItems = new Item[nl];</span>
+<span class="nc bnc" id="L1732" title="All 2 branches missed.">            for (int l = ll - 1; l &gt;= 0; --l) {</span>
+<span class="nc" id="L1733">                Item j = items[l];</span>
+<span class="nc bnc" id="L1734" title="All 2 branches missed.">                while (j != null) {</span>
+<span class="nc" id="L1735">                    int index = j.hashCode % newItems.length;</span>
+<span class="nc" id="L1736">                    Item k = j.next;</span>
+<span class="nc" id="L1737">                    j.next = newItems[index];</span>
+<span class="nc" id="L1738">                    newItems[index] = j;</span>
+<span class="nc" id="L1739">                    j = k;</span>
+<span class="nc" id="L1740">                }</span>
+            }
+<span class="nc" id="L1742">            items = newItems;</span>
+<span class="nc" id="L1743">            threshold = (int) (nl * 0.75);</span>
+        }
+<span class="nc" id="L1745">        int index = i.hashCode % items.length;</span>
+<span class="nc" id="L1746">        i.next = items[index];</span>
+<span class="nc" id="L1747">        items[index] = i;</span>
+<span class="nc" id="L1748">    }</span>
+
+    /**
+     * Puts one byte and two shorts into the constant pool.
+     *
+     * @param b
+     *            a byte.
+     * @param s1
+     *            a short.
+     * @param s2
+     *            another short.
+     */
+    private void put122(final int b, final int s1, final int s2) {
+<span class="nc" id="L1761">        pool.put12(b, s1).putShort(s2);</span>
+<span class="nc" id="L1762">    }</span>
+
+    /**
+     * Puts two bytes and one short into the constant pool.
+     *
+     * @param b1
+     *            a byte.
+     * @param b2
+     *            another byte.
+     * @param s
+     *            a short.
+     */
+    private void put112(final int b1, final int b2, final int s) {
+<span class="nc" id="L1775">        pool.put11(b1, b2).putShort(s);</span>
+<span class="nc" id="L1776">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

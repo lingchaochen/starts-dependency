@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RTSUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.helpers</a> &gt; <span class="el_source">RTSUtil.java</span></div><h1>RTSUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.helpers;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+
+import com.sun.tools.jdeps.Main;
+import edu.illinois.starts.constants.StartsConstants;
+import edu.illinois.starts.util.ChecksumUtil;
+import edu.illinois.starts.util.Logger;
+import edu.illinois.yasgl.DirectedGraph;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.ekstazi.data.RegData;
+
+/**
+ * Some utility methods that are needed for RTS.
+ */
+<span class="nc" id="L30">public class RTSUtil implements StartsConstants {</span>
+<span class="nc" id="L31">    private static final Logger LOGGER = Logger.getGlobal();</span>
+
+    public static void saveForNextRun(String artifactsDir, DirectedGraph&lt;String&gt; graph,
+                                      boolean printGraph, String graphFile) {
+<span class="nc" id="L35">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L36">        Writer.writeGraph(graph, artifactsDir, printGraph, graphFile);</span>
+<span class="nc" id="L37">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L38">        LOGGER.log(Level.FINEST, &quot;[TIME]WRITING FILES: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L39">    }</span>
+
+    public static void computeAndSaveNewCheckSums(String artifactsDir,
+                                                  Set&lt;String&gt; affectedTests,
+                                                  Map&lt;String, Set&lt;String&gt;&gt; testDeps,
+                                                  ClassLoader loader) throws MojoExecutionException {
+        long start;
+        long end;
+<span class="nc" id="L47">        start = System.currentTimeMillis();</span>
+<span class="nc" id="L48">        Map&lt;String, Set&lt;RegData&gt;&gt; newCheckSums = ChecksumUtil.makeCheckSumMap(loader, testDeps, affectedTests);</span>
+<span class="nc" id="L49">        end = System.currentTimeMillis();</span>
+<span class="nc" id="L50">        LOGGER.log(Level.FINEST, &quot;[TIME]UPDATING CHECKSUMS: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L51">        start = System.currentTimeMillis();</span>
+<span class="nc" id="L52">        ChecksumUtil.saveCheckSums(newCheckSums, artifactsDir);</span>
+        try {
+<span class="nc" id="L54">            new File(artifactsDir, EkstaziHelper.notFirstRunMarker).createNewFile();</span>
+<span class="nc" id="L55">        } catch (IOException ioe) {</span>
+<span class="nc" id="L56">            throw new MojoExecutionException(ioe.getMessage());</span>
+<span class="nc" id="L57">        }</span>
+<span class="nc" id="L58">        end = System.currentTimeMillis();</span>
+<span class="nc" id="L59">        LOGGER.log(Level.FINEST, &quot;[TIME]RE-SAVING CHECKSUMS: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L60">    }</span>
+
+    /**
+     * This method computes the affected tests and sets the &quot;changed&quot; field to
+     * contain the set of dependencies that changed since the last run.
+     */
+    public static Set&lt;String&gt; computeAffectedTests(HashSet&lt;String&gt; allTests, Set&lt;String&gt; nonAffected,
+                                                   Map&lt;String, Set&lt;String&gt;&gt; testDeps) {
+<span class="nc" id="L68">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L69">        Set&lt;String&gt; affectedTests = new HashSet&lt;&gt;(allTests);</span>
+<span class="nc" id="L70">        affectedTests.removeAll(nonAffected);</span>
+<span class="nc" id="L71">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L72">        LOGGER.log(Level.FINEST, &quot;[TIME]COMPUTING AFFECTED: &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L73">        return affectedTests;</span>
+    }
+
+    public static Map&lt;String, Set&lt;String&gt;&gt; runJdeps(List&lt;String&gt; args) {
+<span class="nc" id="L77">        StringWriter output = new StringWriter();</span>
+<span class="nc" id="L78">        LOGGER.log(Level.FINE, &quot;JDEPS ARGS:&quot; + args);</span>
+<span class="nc" id="L79">        Main.run(args.toArray(new String[0]), new PrintWriter(output));</span>
+        // jdeps can return an empty output when run on .jar files with no .class files
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        return output.getBuffer().length() != 0 ? getDepsFromJdepsOutput(output) : new HashMap&lt;String, Set&lt;String&gt;&gt;();</span>
+    }
+
+    public static Map&lt;String, Set&lt;String&gt;&gt; getDepsFromJdepsOutput(StringWriter jdepsOutput) {
+<span class="nc" id="L85">        Map&lt;String, Set&lt;String&gt;&gt; deps = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L86">        List&lt;String&gt; lines = Arrays.asList(jdepsOutput.toString().split(System.lineSeparator()));</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        for (String line : lines) {</span>
+<span class="nc" id="L88">            String[] parts = line.split(&quot;-&gt;&quot;);</span>
+<span class="nc" id="L89">            String left = parts[0].trim();</span>
+<span class="nc bnc" id="L90" title="All 6 branches missed.">            if (left.startsWith(CLASSES) || left.startsWith(TEST_CLASSES) || left.endsWith(JAR_EXTENSION)) {</span>
+<span class="nc" id="L91">                continue;</span>
+            }
+<span class="nc" id="L93">            String right = parts[1].trim().split(WHITE_SPACE)[0];</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (deps.keySet().contains(left)) {</span>
+<span class="nc" id="L95">                deps.get(left).add(right);</span>
+            } else {
+<span class="nc" id="L97">                deps.put(left, new HashSet&lt;&gt;(Arrays.asList(right)));</span>
+            }
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">        return deps;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

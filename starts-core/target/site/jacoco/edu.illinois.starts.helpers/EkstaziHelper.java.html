@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EkstaziHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">starts-core</a> &gt; <a href="index.source.html" class="el_package">edu.illinois.starts.helpers</a> &gt; <span class="el_source">EkstaziHelper.java</span></div><h1>EkstaziHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2015 - Present. The STARTS Team. All Rights Reserved.
+ */
+
+package edu.illinois.starts.helpers;
+
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.logging.Level;
+
+import edu.illinois.starts.constants.StartsConstants;
+import edu.illinois.starts.util.Logger;
+import edu.illinois.starts.util.Pair;
+import org.ekstazi.check.AffectedChecker;
+
+/**
+ * Utility methods for interacting with Ekstazi.
+ */
+<span class="nc" id="L26">public class EkstaziHelper implements StartsConstants {</span>
+<span class="nc" id="L27">    public static final Logger LOGGER = Logger.getGlobal();</span>
+<span class="nc" id="L28">    public static String notFirstRunMarker = &quot;not-first-run.clz&quot;;</span>
+<span class="nc" id="L29">    public static String lineSeparator = System.getProperty(&quot;line.separator&quot;);</span>
+
+    public static Pair&lt;Set&lt;String&gt;, Set&lt;String&gt;&gt; getNonAffectedTests(String artifactsDir) {
+<span class="nc" id="L32">        long start = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">        if (isFirstRun(artifactsDir)) {</span>
+<span class="nc" id="L34">            return null;</span>
+        }
+<span class="nc" id="L36">        ByteArrayOutputStream baosOut = new ByteArrayOutputStream();</span>
+<span class="nc" id="L37">        ByteArrayOutputStream baosErr = new ByteArrayOutputStream();</span>
+<span class="nc" id="L38">        PrintStream psOut = new PrintStream(baosOut);</span>
+<span class="nc" id="L39">        PrintStream psErr = new PrintStream(baosErr);</span>
+<span class="nc" id="L40">        PrintStream oldOut = System.out;</span>
+<span class="nc" id="L41">        PrintStream olderr = System.err;</span>
+<span class="nc" id="L42">        System.setOut(psOut);</span>
+<span class="nc" id="L43">        System.setErr(psErr);</span>
+<span class="nc" id="L44">        AffectedChecker.main((String[]) Arrays.asList(artifactsDir).toArray());</span>
+<span class="nc" id="L45">        System.out.flush();</span>
+<span class="nc" id="L46">        System.err.flush();</span>
+<span class="nc" id="L47">        System.setOut(oldOut);</span>
+<span class="nc" id="L48">        System.setErr(olderr);</span>
+<span class="nc" id="L49">        Set&lt;String&gt; changed = processEkstaziDebugInfo(baosErr, artifactsDir);</span>
+<span class="nc" id="L50">        Set&lt;String&gt; nonAffected = new HashSet&lt;&gt;(Arrays.asList(baosOut.toString().split(lineSeparator)));</span>
+<span class="nc" id="L51">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L52">        LOGGER.log(Level.FINEST, TIME_COMPUTING_NON_AFFECTED + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L53">        return new Pair&lt;&gt;(nonAffected, changed);</span>
+    }
+
+    public static Pair&lt;Set&lt;String&gt;, Set&lt;String&gt;&gt; getNonAffectedTests(File basedir) {
+<span class="nc" id="L57">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L58">        List&lt;String&gt; nonAffectedFiles = AffectedChecker.findNonAffectedClasses(basedir, getRootDirOption(basedir));</span>
+<span class="nc" id="L59">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L60">        Set&lt;String&gt; nonAffectedTests = toFQN(new HashSet&lt;&gt;(nonAffectedFiles));</span>
+<span class="nc" id="L61">        Set&lt;String&gt; changed = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L62">        LOGGER.log(Level.FINEST, &quot;[TIME]COMPUTING NON-AFFECTED(2): &quot; + (end - start) + MILLISECOND);</span>
+<span class="nc" id="L63">        return new Pair&lt;&gt;(nonAffectedTests, changed);</span>
+    }
+
+    private static boolean isFirstRun(String artifactsDir) {
+        // If the notFirstRunMarker file does not exist, this is a first run
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        return !(new File(artifactsDir, notFirstRunMarker).exists());</span>
+    }
+
+    /**
+     * Process the Ekstazi debug output to get what classes Ekstazi thinks changed, and write those changed classes
+     * to file.
+     *
+     * @param baosErr      Ekstazi Debug Output
+     * @param artifactsDir Directory in which we store STARTS artifacts (i.e., &quot;.starts&quot;)
+     * @return             The (possibly empty) set of changed classes
+     */
+    private static Set&lt;String&gt; processEkstaziDebugInfo(ByteArrayOutputStream baosErr, String artifactsDir) {
+<span class="nc" id="L80">        Set&lt;String&gt; changed = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (LOGGER.getLoggingLevel().intValue() &gt; Level.FINEST.intValue()) {</span>
+<span class="nc" id="L82">            return changed;</span>
+        }
+<span class="nc" id="L84">        String outFilename = artifactsDir + File.separator + CHANGED_CLASSES;</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        for (String line : Arrays.asList(baosErr.toString().split(lineSeparator))) {</span>
+<span class="nc" id="L86">            String ekstaziDiffMarker = &quot;::Diff:: &quot;;</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (line.contains(ekstaziDiffMarker)) {</span>
+<span class="nc" id="L88">                changed.add(line.split(ekstaziDiffMarker)[1]);</span>
+            }
+<span class="nc" id="L90">        }</span>
+<span class="nc" id="L91">        try (BufferedWriter writer = Writer.getWriter(outFilename)) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (String file : changed) {</span>
+<span class="nc" id="L93">                writer.write(file + lineSeparator);</span>
+<span class="nc" id="L94">            }</span>
+<span class="nc bnc" id="L95" title="All 8 branches missed.">        } catch (IOException ioe) {</span>
+<span class="nc" id="L96">            ioe.printStackTrace();</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">        return changed;</span>
+    }
+
+    private static String getRootDirOption(File basedir) {
+<span class="nc" id="L102">        return &quot;root.dir=&quot; + getRootDirURI(basedir);</span>
+    }
+
+    private static String getRootDirURI(File rootDir) {
+<span class="nc" id="L106">        String artifactsDir = rootDir.getAbsolutePath() + File.separator + &quot;.starts&quot;;</span>
+<span class="nc" id="L107">        return (new File(artifactsDir)).toURI().toString();</span>
+    }
+
+    private static Set&lt;String&gt; toFQN(Set&lt;String&gt; diff) {
+<span class="nc" id="L111">        Set&lt;String&gt; diffFQNs = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        for (String d : diff) {</span>
+<span class="nc" id="L113">            diffFQNs.add(d.replace(&quot;.java&quot;, EMPTY).replace(File.separator, DOT));</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">        return diffFQNs;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

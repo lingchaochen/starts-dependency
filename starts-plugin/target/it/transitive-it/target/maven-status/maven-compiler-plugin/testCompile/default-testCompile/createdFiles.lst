@@ -1,0 +1,4 @@
+transitive/ChildTest.class
+transitive/BaseTest.class
+transitive/GrandChildTest.class
+transitive/SiblingTest.class

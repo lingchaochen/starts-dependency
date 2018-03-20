@@ -1,0 +1,98 @@
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building base-it 1.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] >>> starts-maven-plugin:1.4-SNAPSHOT:starts (touch) > [starts]test @ base-it >>>
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ base-it ---
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 1 source file to /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/target/classes
+[WARNING] /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/java/base/Simple.java: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/java/base/Simple.java uses unchecked or unsafe operations.
+[WARNING] /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/java/base/Simple.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/test/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ base-it ---
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 1 source file to /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/target/test-classes
+[INFO] 
+[INFO] >>> starts-maven-plugin:1.4-SNAPSHOT:run (touch) > test-compile @ base-it >>>
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ base-it ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/test/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ base-it ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] <<< starts-maven-plugin:1.4-SNAPSHOT:run (touch) < test-compile @ base-it <<<
+[INFO] 
+[INFO] --- starts-maven-plugin:1.4-SNAPSHOT:run (touch) @ base-it ---
+objc[5147]: Class JavaLaunchHelper is implemented in both /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/bin/java (0x10e4ec4c0) and /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/libinstrument.dylib (0x1161024e0). One of the two will be used. Which one is undefined.
+1111111111111INFO: ALL(count): 2
+INFO: UNREACHED(count): 0
+INFO: STARTS:Nodes: 452
+INFO: STARTS:Edges: 2907
+INFO: STARTS:AffectedTests: 1
+INFO: STARTS:TotalTests: 1
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ base-it ---
+
+-------------------------------------------------------
+ T E S T S
+-------------------------------------------------------
+Running base.SimpleTest
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.076 sec - in base.SimpleTest
+
+Results :
+
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+
+[INFO] 
+[INFO] <<< starts-maven-plugin:1.4-SNAPSHOT:starts (touch) < [starts]test @ base-it <<<
+[INFO] 
+[INFO] --- starts-maven-plugin:1.4-SNAPSHOT:starts (touch) @ base-it ---
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/main/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ base-it ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ base-it ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/src/test/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ base-it ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ base-it ---
+[INFO] Skipping execution of surefire because it has already been run for this configuration
+[INFO] 
+[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ base-it ---
+[INFO] Building jar: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/target/base-it-1.0-SNAPSHOT.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 20.885 s
+[INFO] Finished at: 2018-03-20T11:30:25-05:00
+[INFO] Final Memory: 23M/307M
+[INFO] ------------------------------------------------------------------------
+Running post-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/verify.groovy
+Finished post-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/base-it/verify.groovy
