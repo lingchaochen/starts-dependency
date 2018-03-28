@@ -10,7 +10,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,17 +138,9 @@ abstract class BaseMojo extends SurefirePlugin implements StartsConstants {
         } catch (IllegalAccessException iae) {
             iae.printStackTrace();
         }
-        
         long end = System.currentTimeMillis();
         Logger.getGlobal().log(Level.FINE, "[PROFILE] " + methodName + "(getTestClasses): "
                 + Writer.millsToSeconds(end - start));
-//        List list = defaultScanResult.getFiles();
-//        Iterator it1 = list.iterator();
-//        
-//        while (it1.hasNext()) {  
-//            System.out.println(it1.next());  
-//        }
-//        System.out.println(defaultScanResult.getClassName(0));
         return (List<String>) defaultScanResult.getFiles();
     }
 

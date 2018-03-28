@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuite tests="7" failures="0" name="edu.illinois.starts.helpers.YasglHelperTest" time="0.898" errors="0" skipped="0">
+<testsuite tests="7" failures="0" name="edu.illinois.starts.helpers.YasglHelperTest" time="0.191" errors="0" skipped="0">
   <properties>
     <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
     <property name="sun.boot.library.path" value="/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib"/>
     <property name="java.vm.version" value="25.131-b11"/>
     <property name="gopherProxySet" value="false"/>
     <property name="java.vm.vendor" value="Oracle Corporation"/>
-    <property name="maven.multiModuleProjectDirectory" value="/Users/chenlingchao/PycharmProjects/information/starts"/>
+    <property name="maven.multiModuleProjectDirectory" value="/Users/chenlingchao/test/starts"/>
     <property name="java.vendor.url" value="http://java.oracle.com/"/>
     <property name="path.separator" value=":"/>
     <property name="guice.disable.misplaced.annotation.check" value="true"/>
@@ -16,7 +16,7 @@
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="sun.os.patch.level" value="unknown"/>
     <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
-    <property name="user.dir" value="/Users/chenlingchao/PycharmProjects/information/starts"/>
+    <property name="user.dir" value="/Users/chenlingchao/test/starts"/>
     <property name="java.runtime.version" value="1.8.0_131-b11"/>
     <property name="java.awt.graphicsenv" value="sun.awt.CGraphicsEnvironment"/>
     <property name="java.endorsed.dirs" value="/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/endorsed"/>
@@ -32,7 +32,7 @@
     <property name="java.specification.name" value="Java Platform API Specification"/>
     <property name="java.class.version" value="52.0"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
-    <property name="os.version" value="10.13.1"/>
+    <property name="os.version" value="10.13.3"/>
     <property name="user.home" value="/Users/chenlingchao"/>
     <property name="user.timezone" value="America/Chicago"/>
     <property name="java.awt.printerjob" value="sun.lwawt.macosx.CPrinterJob"/>
@@ -59,11 +59,11 @@
     <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
     <property name="sun.cpu.isalist" value=""/>
   </properties>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgesToBuilderTest" time="0.865"/>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addMultipleEdgesToBuilder" time="0.023"/>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEmpytEdgeToBuilderTest" time="0.007"/>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgeToBuilderTestNoFile" time="0.001"/>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgeToGraphTest" time="0.001"/>
-  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addMultipleEdgesToGraph" time="0.001"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgeToGraphTest" time="0.142"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addMultipleEdgesToGraph" time="0.014"/>
   <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEmptyEdgeTest" time="0"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgesToBuilderTest" time="0.029"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addMultipleEdgesToBuilder" time="0.002"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEmpytEdgeToBuilderTest" time="0.002"/>
+  <testcase classname="edu.illinois.starts.helpers.YasglHelperTest" name="addEdgeToBuilderTestNoFile" time="0.002"/>
 </testsuite>

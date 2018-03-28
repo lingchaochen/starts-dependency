@@ -101,13 +101,17 @@ public class ZLCHelper implements StartsConstants {
         // for each dep, find it's url, checksum and tests that depend on it
         for (String dep : deps) {
             String klas = ChecksumUtil.toClassName(dep);
-            if (Types.isIgnorableInternalName(klas)) {
-                continue;
-            }
+//            if (Types.isIgnorableInternalName(klas)) {
+//                continue;
+//            }
             URL url = loader.getResource(klas);
-            if (url == null || ChecksumUtil.isWellKnownUrl(url.toExternalForm())) {
+//            if (url == null || ChecksumUtil.isWellKnownUrl(url.toExternalForm())) {
+//                continue;
+//            }
+            if (url == null || !ChecksumUtil.filter(url.toExternalForm())) {
                 continue;
             }
+            
             String checksum = checksumUtil.computeSingleCheckSum(url);
             Set<String> tests = new HashSet<>();
             for (String test : testDeps.keySet()) {

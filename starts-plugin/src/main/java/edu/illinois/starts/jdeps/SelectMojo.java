@@ -49,7 +49,6 @@ public class SelectMojo extends DiffMojo implements StartsConstants {
     private Set<String> computeAffectedTests() throws MojoExecutionException {
         setIncludesExcludes();
         Set<String> allTests = new HashSet<>(getTestClasses(CHECK_IF_ALL_AFFECTED));
-        System.out.println(allTests);
         Set<String> affectedTests = new HashSet<>(allTests);
         Pair<Set<String>, Set<String>> data = computeChangeData(false);
         Set<String> nonAffectedTests = data == null ? new HashSet<String>() : data.getKey();

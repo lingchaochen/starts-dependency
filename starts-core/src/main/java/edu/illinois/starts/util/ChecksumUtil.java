@@ -87,6 +87,10 @@ public class ChecksumUtil implements StartsConstants {
                 || klas.contains("!/org/apache/maven") || klas.contains(JAVAHOME);
     }
 
+    public static boolean filter(String klas) {
+        return klas.contains("!/java")||klas.contains("!/com/sun")||klas.contains("!/jdk")||klas.contains("!/sun");
+    }
+    
     public static String toClassName(String fqn) {
         return fqn.replace(DOT, File.separator) + CLASS_EXTENSION;
     }

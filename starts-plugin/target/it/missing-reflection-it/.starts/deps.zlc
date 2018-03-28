@@ -1,1 +1,8 @@
-file:/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/missing-reflection-it/target/test-classes/base/SimpleTest.class 3948096183 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/Throwable.class 4285033534 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/annotation/Annotation.class 3780189996 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/Class.class 293957477 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/ClassNotFoundException.class 4195037391 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/Object.class 221723269 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/annotation/Target.class 2749952794 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/String.class 1495489107 base.SimpleTest
+jar:file:/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/rt.jar!/java/lang/annotation/Retention.class 561188198 base.SimpleTest

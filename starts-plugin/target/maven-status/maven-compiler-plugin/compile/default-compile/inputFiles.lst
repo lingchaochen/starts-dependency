@@ -1,9 +1,8 @@
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/BaseMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/StartsMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/CleanMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/RunMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/depMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/ImpactedMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/DiffMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/SelectMojo.java
-/Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/generated-sources/plugin/HelpMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/StartsMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/BaseMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/CleanMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/RunMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/SelectMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/DiffMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/target/generated-sources/plugin/HelpMojo.java
+/Users/chenlingchao/test/starts/starts-plugin/src/main/java/edu/illinois/starts/jdeps/ImpactedMojo.java

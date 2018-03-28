@@ -87,62 +87,66 @@ public class ChecksumUtil implements StartsConstants {
 <span class="nc bnc" id="L87" title="All 4 branches missed.">                || klas.contains(&quot;!/org/apache/maven&quot;) || klas.contains(JAVAHOME);</span>
     }
 
+    public static boolean filter(String klas) {
+<span class="nc bnc" id="L91" title="All 8 branches missed.">        return klas.contains(&quot;!/java&quot;)||klas.contains(&quot;!/com/sun&quot;)||klas.contains(&quot;!/jdk&quot;)||klas.contains(&quot;!/sun&quot;);</span>
+    }
+    
     public static String toClassName(String fqn) {
-<span class="nc" id="L91">        return fqn.replace(DOT, File.separator) + CLASS_EXTENSION;</span>
+<span class="nc" id="L95">        return fqn.replace(DOT, File.separator) + CLASS_EXTENSION;</span>
     }
 
     public static void saveCheckSums(Map&lt;String, Set&lt;RegData&gt;&gt; newCheckSums, String artifactsDir) {
-<span class="nc bnc" id="L95" title="All 2 branches missed.">        for (String test : newCheckSums.keySet()) {</span>
-<span class="nc" id="L96">            String checksumPath = makeCheckSumPath(test, artifactsDir);</span>
-<span class="nc" id="L97">            writeChecksumFile(checksumPath, newCheckSums.get(test));</span>
-<span class="nc" id="L98">        }</span>
-<span class="nc" id="L99">    }</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        for (String test : newCheckSums.keySet()) {</span>
+<span class="nc" id="L100">            String checksumPath = makeCheckSumPath(test, artifactsDir);</span>
+<span class="nc" id="L101">            writeChecksumFile(checksumPath, newCheckSums.get(test));</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">    }</span>
 
     public static String makeCheckSumPath(String test, String artifactsDir) {
-<span class="nc" id="L102">        return artifactsDir + test + &quot;.clz&quot;;</span>
+<span class="nc" id="L106">        return artifactsDir + test + &quot;.clz&quot;;</span>
     }
 
     public static void writeChecksumFile(String filePath, Set&lt;RegData&gt; data) {
-<span class="nc" id="L106">        StartsStorer storer = new StartsStorer(true);</span>
+<span class="nc" id="L110">        StartsStorer storer = new StartsStorer(true);</span>
         try {
-<span class="nc" id="L108">            File file = new File(filePath);</span>
-<span class="nc" id="L109">            file.createNewFile();</span>
-<span class="nc" id="L110">            FileOutputStream fos = new FileOutputStream(file, false);</span>
-<span class="nc" id="L111">            storer.save(fos, data);</span>
-<span class="nc" id="L112">        } catch (FileNotFoundException fnfe) {</span>
-<span class="nc" id="L113">            fnfe.printStackTrace();</span>
-<span class="nc" id="L114">        } catch (IOException ioe) {</span>
-<span class="nc" id="L115">            ioe.printStackTrace();</span>
-<span class="nc" id="L116">        }</span>
-<span class="nc" id="L117">    }</span>
+<span class="nc" id="L112">            File file = new File(filePath);</span>
+<span class="nc" id="L113">            file.createNewFile();</span>
+<span class="nc" id="L114">            FileOutputStream fos = new FileOutputStream(file, false);</span>
+<span class="nc" id="L115">            storer.save(fos, data);</span>
+<span class="nc" id="L116">        } catch (FileNotFoundException fnfe) {</span>
+<span class="nc" id="L117">            fnfe.printStackTrace();</span>
+<span class="nc" id="L118">        } catch (IOException ioe) {</span>
+<span class="nc" id="L119">            ioe.printStackTrace();</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">    }</span>
 
     public RegData computeChecksumRegData(URL url) {
-<span class="nc" id="L120">        String checksum = getCheckSum(url);</span>
-<span class="nc" id="L121">        return new RegData(url.toExternalForm(), checksum);</span>
+<span class="nc" id="L124">        String checksum = getCheckSum(url);</span>
+<span class="nc" id="L125">        return new RegData(url.toExternalForm(), checksum);</span>
     }
 
     public String getCheckSum(URL url) {
-<span class="nc bnc" id="L125" title="All 2 branches missed.">        if (!checkSumMap.containsKey(url)) {</span>
-<span class="nc" id="L126">            String value = computeSingleCheckSum(url);</span>
-<span class="nc" id="L127">            checkSumMap.put(url, value);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (!checkSumMap.containsKey(url)) {</span>
+<span class="nc" id="L130">            String value = computeSingleCheckSum(url);</span>
+<span class="nc" id="L131">            checkSumMap.put(url, value);</span>
         }
-<span class="nc" id="L129">        return checkSumMap.get(url);</span>
+<span class="nc" id="L133">        return checkSumMap.get(url);</span>
     }
 
     public String computeSingleCheckSum(URL url) {
-<span class="nc" id="L133">        return hasher.hashURL(url.toExternalForm());</span>
+<span class="nc" id="L137">        return hasher.hashURL(url.toExternalForm());</span>
     }
 
     static class StartsStorer extends TxtStorer {
         public StartsStorer(boolean checkMagicSequence) {
-<span class="nc" id="L138">            super(checkMagicSequence);</span>
-<span class="nc" id="L139">        }</span>
+<span class="nc" id="L142">            super(checkMagicSequence);</span>
+<span class="nc" id="L143">        }</span>
 
         public void save(FileOutputStream fos, Set&lt;RegData&gt; data) {
-<span class="nc" id="L142">            SortedSet&lt;RegData&gt; sortedData = new TreeSet&lt;&gt;(new RegData.RegComparator());</span>
-<span class="nc" id="L143">            sortedData.addAll(data);</span>
-<span class="nc" id="L144">            super.extendedSave(fos, sortedData);</span>
-<span class="nc" id="L145">        }</span>
+<span class="nc" id="L146">            SortedSet&lt;RegData&gt; sortedData = new TreeSet&lt;&gt;(new RegData.RegComparator());</span>
+<span class="nc" id="L147">            sortedData.addAll(data);</span>
+<span class="nc" id="L148">            super.extendedSave(fos, sortedData);</span>
+<span class="nc" id="L149">        }</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>

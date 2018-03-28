@@ -5,10 +5,8 @@
 package edu.illinois.starts.jdeps;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Level;
 
@@ -66,9 +64,6 @@ public class DiffMojo extends BaseMojo implements StartsConstants {
             extraText = " (no RTS artifacts; likely the first run)";
         }
         printResult(changed, "ChangedClasses" + extraText);
-        
-        checkdep(nonAffected);
-        
         if (updateDiffChecksums) {
             updateForNextRun(nonAffected);
         }
@@ -91,31 +86,8 @@ public class DiffMojo extends BaseMojo implements StartsConstants {
         Logger.getGlobal().log(Level.FINE, "[PROFILE] COMPUTING CHANGES: " + Writer.millsToSeconds(end - start));
         return data;
     }
-    
-    public void checkdep(Set<String> nonAffected) throws MojoExecutionException{
-    	Classpath sfClassPath = getSureFireClassPath();
-        String sfPathString = Writer.pathToString(sfClassPath.getClassPath());
-        List<String> allTests = getTestClasses("updateForNextRun");
-        boolean computeUnreached = true;
-        Set<String> affectedTests = new HashSet<>(allTests);
-        ClassLoader loader = createClassLoader(sfClassPath);
-        Result result = prepareForNextRun(sfPathString, sfClassPath, allTests, nonAffected, computeUnreached);
-        Map<String, Set<String>> Testsdep = result.getTestDeps();
-        Iterator<Entry<String, Set<String>>> it = Testsdep.entrySet().iterator();
-        while (it.hasNext()) {  
-            Map.Entry<String, Set<String>> entry =  it.next();
-            String key = entry.getKey();
-            Iterator<String> it2 = entry.getValue().iterator();
-            System.out.println("key = " + key + "; ");
-            while (it2.hasNext()) {  
-            	  String str = it2.next();  
-            	  System.out.print(str+"|");  
-            	} 
-        }
-    }
 
     protected void updateForNextRun(Set<String> nonAffected) throws MojoExecutionException {
-    	System.out.print("1111111111111");
         long start = System.currentTimeMillis();
         Classpath sfClassPath = getSureFireClassPath();
         String sfPathString = Writer.pathToString(sfClassPath.getClassPath());
@@ -138,19 +110,6 @@ public class DiffMojo extends BaseMojo implements StartsConstants {
             } else if (depFormat == DependencyFormat.CLZ) {
                 // The next line is not needed with ZLC because '*' is explicitly tracked in ZLC
                 affectedTests = result.getAffectedTests();
-                System.out.print(affectedTests.size());
-                System.out.print("2222222222222");
-                Map<String, Set<String>> Testsdep = result.getTestDeps();
-                Iterator<Entry<String, Set<String>>> it = Testsdep.entrySet().iterator();  
-                while (it.hasNext()) {  
-                    Map.Entry<String, Set<String>> entry =  it.next();  
-                    String key = entry.getKey();  
-//                    Set<String> value = entry.getValue();  
-                    System.out.println("key = " + key + "; ");  
-                }
-                
-                System.out.println(Testsdep.size());
-                
                 if (affectedTests == null) {
                     throw new MojoExecutionException("Affected tests should not be null with CLZ format!");
                 }

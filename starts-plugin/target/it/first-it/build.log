@@ -1,5 +1,5 @@
-Running pre-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/setup.groovy
-Finished pre-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/setup.groovy
+Running pre-build script: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/setup.groovy
+Finished pre-build script: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/setup.groovy
 [INFO] Scanning for projects...
 [INFO]                                                                         
 [INFO] ------------------------------------------------------------------------
@@ -10,34 +10,34 @@ Finished pre-build script: /Users/chenlingchao/PycharmProjects/information/start
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ first-it ---
 [INFO] Changes detected - recompiling the module!
-[INFO] Compiling 1 source file to /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/target/classes
-[WARNING] /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java uses unchecked or unsafe operations.
-[WARNING] /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java: Recompile with -Xlint:unchecked for details.
+[INFO] Compiling 1 source file to /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/target/classes
+[WARNING] /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java uses unchecked or unsafe operations.
+[WARNING] /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/java/first/First.java: Recompile with -Xlint:unchecked for details.
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/test/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ first-it ---
 [INFO] Changes detected - recompiling the module!
-[INFO] Compiling 1 source file to /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/target/test-classes
+[INFO] Compiling 1 source file to /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/target/test-classes
 [INFO] 
 [INFO] >>> starts-maven-plugin:1.4-SNAPSHOT:run (touch) > test-compile @ first-it >>>
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ first-it ---
 [INFO] Nothing to compile - all classes are up to date
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/test/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ first-it ---
 [INFO] Nothing to compile - all classes are up to date
@@ -45,8 +45,16 @@ Finished pre-build script: /Users/chenlingchao/PycharmProjects/information/start
 [INFO] <<< starts-maven-plugin:1.4-SNAPSHOT:run (touch) < test-compile @ first-it <<<
 [INFO] 
 [INFO] --- starts-maven-plugin:1.4-SNAPSHOT:run (touch) @ first-it ---
-objc[5095]: Class JavaLaunchHelper is implemented in both /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/bin/java (0x10fc794c0) and /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/libinstrument.dylib (0x12e8fb4e0). One of the two will be used. Which one is undefined.
-1111111111111INFO: ALL(count): 2
+1
+INFO: ALL(count): 2
+INFO: UNREACHED(count): 0
+INFO: STARTS:Nodes: 452
+INFO: STARTS:Edges: 2907
+8
+affectedtests_num:8
+[first.FirstTest]
+objc[76567]: Class JavaLaunchHelper is implemented in both /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/bin/java (0x1042aa4c0) and /Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home/jre/lib/libinstrument.dylib (0x10ae274e0). One of the two will be used. Which one is undefined.
+INFO: ALL(count): 2
 INFO: UNREACHED(count): 0
 INFO: STARTS:Nodes: 452
 INFO: STARTS:Edges: 2907
@@ -54,17 +62,6 @@ INFO: STARTS:AffectedTests: 1
 INFO: STARTS:TotalTests: 1
 [INFO] 
 [INFO] --- maven-surefire-plugin:2.19.1:test (default-test) @ first-it ---
-
--------------------------------------------------------
- T E S T S
--------------------------------------------------------
-Running first.FirstTest
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.139 sec - in first.FirstTest
-
-Results :
-
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
-
 [INFO] 
 [INFO] <<< starts-maven-plugin:1.4-SNAPSHOT:starts (touch) < [starts]test @ first-it <<<
 [INFO] 
@@ -72,14 +69,14 @@ Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/main/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/main/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ first-it ---
 [INFO] Nothing to compile - all classes are up to date
 [INFO] 
 [INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ first-it ---
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
-[INFO] skip non existing resourceDirectory /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/src/test/resources
+[INFO] skip non existing resourceDirectory /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/src/test/resources
 [INFO] 
 [INFO] --- maven-compiler-plugin:3.1:testCompile (default-testCompile) @ first-it ---
 [INFO] Nothing to compile - all classes are up to date
@@ -88,13 +85,13 @@ Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 [INFO] Skipping execution of surefire because it has already been run for this configuration
 [INFO] 
 [INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ first-it ---
-[INFO] Building jar: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/target/first-it-1.0-SNAPSHOT.jar
+[INFO] Building jar: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/target/first-it-1.0-SNAPSHOT.jar
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time: 20.956 s
-[INFO] Finished at: 2018-03-20T11:29:10-05:00
-[INFO] Final Memory: 23M/324M
+[INFO] Total time: 3.840 s
+[INFO] Finished at: 2018-03-27T20:46:52-05:00
+[INFO] Final Memory: 27M/380M
 [INFO] ------------------------------------------------------------------------
-Running post-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/verify.groovy
-Finished post-build script: /Users/chenlingchao/PycharmProjects/information/starts/starts-plugin/target/it/first-it/verify.groovy
+Running post-build script: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/verify.groovy
+Finished post-build script: /Users/chenlingchao/test/starts/starts-plugin/target/it/first-it/verify.groovy
